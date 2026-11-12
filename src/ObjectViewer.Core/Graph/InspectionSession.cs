@@ -22,13 +22,18 @@ public sealed class InspectionSession : IAsyncDisposable
     private int _createdNodes;
     private volatile bool _disposed;
 
-    public InspectionSession(InspectionOptions options)
+    public InspectionSession(
+        InspectionOptions options,
+        IReadOnlyList<IObjectAdapter>? customAdapters = null,
+        IReadOnlyList<IObjectValueFormatter>? customFormatters = null)
     {
         Options = options;
         IdentityMap = new ObjectIdentityMap(options.ReferenceMode);
         _loadGate = new SemaphoreSlim(Math.Max(1, options.MaximumConcurrentLoads));
-        Adapters = new ObjectAdapterRegistry(ObjectViewerDefaults.CreateDefaultAdapters());
-        Formatters = new FormatterRegistry(ObjectViewerDefaults.CreateDefaultFormatters());
+        Adapters = new ObjectAdapterRegistry(
+            ObjectViewerDefaults.CreateDefaultAdapters().Concat(customAdapters ?? []));
+        Formatters = new FormatterRegistry(
+            ObjectViewerDefaults.CreateDefaultFormatters().Concat(customFormatters ?? []));
         SensitivePolicy = new DefaultSensitiveDataPolicy();
         MemberPolicy = new DefaultMemberPolicy(SensitivePolicy);
         Explorer = new ObjectGraphExplorer(this);
@@ -139,7 +144,7 @@ public static class InspectionSessionFactory
     public static InspectionSession Start(InspectionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var session = new InspectionSession(request.Options);
+        var session = new InspectionSession(request.Options, request.CustomAdapters, request.CustomFormatters);
         _ = session.Explorer.CreateRoot(request);
         return session;
     }

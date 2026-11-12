@@ -320,12 +320,48 @@ M0 骨架 ──→ M1 领域模型 ──→ M2 元数据/访问器 ──→ M
 | D-18 | **byte[] 允许显式分页展开**(每项 `0xXX 'M'` 预设显示) | PRD "不作为普通集合自动展开"指父级展开时不自动倾倒字节行;懒加载保证只有用户显式展开 byte[] 节点才分页加载 |
 | D-19 | **VM 通过 `Task.Run` 派发 Core 调用** | 同步 Getter 可能阻塞;派发职责收敛在 ViewModel 一处,Core 保持纯 async 语义(Proposal §24 线程模型) |
 
-### 9.3 待办(进入 V0.2 前需要补齐的 V0.1 项)
+### 9.3 V0.2 交付记录(2026-11-12 第二批次)
 
-- WPF 层自动化测试(展开/折叠行数、LoadMore 不重复、选中保持)— 当前以 Core 测试 + Demo 人工验收覆盖
+#### 交付内容
+
+| 能力 | 实现 | 验证 |
+|---|---|---|
+| 数据源导入框架 | `IDataSourceProvider` 契约(Core)+ `DataSourceImportService`(Extensions,按扩展名/格式标签分发)+ JSON/YAML/XML/CSV 四个 Provider;一次性快照语义;文件大小/条目数前置预算,超限抛出明确异常 | 9 个导入测试 |
+| 格式展示 Adapter | JsonNodeAdapter(JsonNode 类型保真)、YamlValueAdapter(锚点/别名物化为同一实例→共享引用检测)、XElementAdapter(@attr 成员、重复同名元素索引路径)、经 `InspectionRequest.CustomAdapters` 注入 | YAML 别名→引用节点测试 |
+| 敏感规则对外部数据生效 | JSON `"password"` 键、YAML 键、XML 属性名、CSV 列名均脱敏 | 各格式测试 |
+| 搜索 | 已加载节点搜索(零 Getter 触发,掩码值不可搜)+ 有边界深度搜索(深度 8/节点 10000/每集合 100 项/超时 10s/结果上限 500,截断显式提示,局部 visited 集不污染会话身份表)+ 结果点击导航(沿稳定路径逐层展开定位) | 8 个搜索测试 |
+| 刷新 | 节点/子树/全部已加载三档;成员节点原地重读(实例未变时保留已加载子树,FR-101);类型变化→子节点失效并由 VM 自动重载;刷新后引用节点经祖先链/首现表恢复显示;变更高亮(可关闭) | 6 个刷新测试 |
+| 快照与 Diff | 仅已加载节点(快速无副作用);稳定路径索引;Added/Removed/Changed/TypeChanged;敏感值仅存掩码文本(FR-114);跨会话稳定路径 | 8 个快照测试 |
+| 工具栏 | 搜索框+范围选择、刷新三按钮、高亮开关、快照/对比、状态栏文本 | Demo 人工验收 |
+
+**构建状态**:`dotnet build` 0 警告 0 错误;`dotnet test` 75/75 通过(Core 66 + Extensions 9);新增 `ObjectViewer.Extensions`、`ObjectViewer.Extensions.Tests` 两个项目并已注册进 sln。
+
+#### 实施期补充决策(V0.2)
+
+| # | 决策 | 说明 |
+|---|---|---|
+| D-20 | **YAML 物化为自定义 IR(`YamlValue`)** | YamlDotNet 16 的 `YamlAliasNode` 为 internal(按类型名判定);自建 IR 保证锚点/别名解析为同一实例,引用身份检测直接生效,且规避了 YamlDotNet 构造 API 的不确定性 |
+| D-21 | **深度搜索复用 Adapter 管线** | 对 CLR 对象与导入格式统一生效(策略/脱敏/分页同源,FR-094);使用局部 visited 集合,不触碰会话身份表 |
+| D-22 | **快照=已加载节点 + 掩码文本** | FR-114 语义(掩码标记+掩码文本,绝不存原值);Diff 前需手动刷新以反映实时变化(快照不主动读值) |
+| D-23 | **刷新语义分级** | 成员节点(有 Accessor)原地重读;实例/类型未变保留子树;类型变化失效子树;集合/根无读取路径→失效后由 VM 自动重载展开 |
+| D-24 | **XML 重复同名兄弟元素使用 IndexSegment** | 保证稳定路径唯一,否则 Diff 索引冲突;唯一名称仍用 MemberSegment |
+| D-25 | **`ObjectNode.Continuation` 公开** | 扩展 Adapter 需要按节点保存分页状态,属于 Adapter 契约的一部分 |
+
+#### 剩余待办(合并 V0.1 尾项与 V0.2 后续批次)
+
+V0.1 尾项:
+- WPF 层自动化测试(展开/折叠行数、LoadMore 不重复、选中保持)
 - 内存释放验证(WeakReference + GC,验收项 A10)
 - 性能基准(BenchmarkDotNet + 10 万节点滚动)
 - CI 管道(GitHub Actions / Azure DevOps)
+
+V0.2 后续批次:
+- `INotifyPropertyChanged` / `INotifyCollectionChanged` 订阅(会话统一释放)
+- 定时轮询(分桶调度器、最小周期、最大并发)
+- `DebuggerDisplay` 受限子集支持
+- 未知 `IEnumerable` 显式枚举(Enumerator 会话分批)
+- 变更高亮自动消退(当前为持续高亮+开关)
+- 快照导出(V1.0)
 
 ---
 

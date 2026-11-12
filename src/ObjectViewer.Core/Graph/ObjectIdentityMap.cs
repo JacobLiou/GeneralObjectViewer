@@ -63,4 +63,18 @@ public sealed class ObjectIdentityMap
         if (_mode == ReferenceMode.ShowSharedReferences)
             _firstSeen!.TryAdd(value, (Interlocked.Increment(ref _identitySeed), rootPath));
     }
+
+    /// <summary>
+    /// Returns the first-seen path for a value in shared-references mode, or null when
+    /// the value is unregistered or was first seen at <paramref name="selfPath"/> itself.
+    /// Used by refresh to re-render reference nodes without re-registering.
+    /// </summary>
+    public ObjectPath? FindShared(object value, ObjectPath selfPath)
+    {
+        if (_mode != ReferenceMode.ShowSharedReferences)
+            return null;
+        if (_firstSeen!.TryGetValue(value, out var existing) && !existing.FirstPath.Equals(selfPath))
+            return existing.FirstPath;
+        return null;
+    }
 }

@@ -1,6 +1,9 @@
 using System.Windows;
 using System.Windows.Controls;
+using Microsoft.Win32;
+using ObjectViewer.Core.DataSources;
 using ObjectViewer.Core.Graph;
+using ObjectViewer.Extensions;
 using ObjectViewer.TestModels;
 
 namespace ObjectViewer.Demo;
@@ -9,6 +12,60 @@ public sealed record Sample(string Title, string Description, Func<InspectionReq
 
 public partial class MainWindow : Window
 {
+    private static readonly DataSourceImportService ImportService = new();
+
+    private const string SampleJsonText = """
+        {
+          "station": "S01",
+          "password": "hunter2",
+          "timeoutMs": 3000,
+          "enabled": true,
+          "axes": [
+            { "index": 0, "position": 12.5 },
+            { "index": 1, "position": -3.25 }
+          ],
+          "tags": ["alpha", "beta"]
+        }
+        """;
+
+    private const string SampleYamlText = """
+        server:
+          host: 192.168.1.10
+          port: 502
+        auth:
+          password: secret-yaml
+        devices:
+          - name: gripper
+            address: 1
+          - name: scanner
+            address: 2
+        shared: &common
+          retries: 3
+          timeout: 5
+        refA: *common
+        refB: *common
+        """;
+
+    private const string SampleXmlText = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <Device name="RobotArm" version="2">
+          <Axes count="3">
+            <Axis index="0">12.5</Axis>
+            <Axis index="1">-3.25</Axis>
+            <Axis index="2">0</Axis>
+          </Axes>
+          <Credentials password="p@ss" token="abc123"/>
+          <Notes>Imported from an XML file.</Notes>
+        </Device>
+        """;
+
+    private const string SampleCsvText = """
+        Name,Age,City,ApiKey
+        Alice,34,Shanghai,sk-123
+        Bob,28,Beijing,sk-456
+        Carol,41,"Suzhou, Industrial Park",sk-789
+        """;
+
     private static readonly Sample[] Samples =
     [
         new("Dog (接口/循环引用)", "IAnimal 声明类型 + Dog 运行时类型;Dog.Owner.Pet 构成环,展开到 Pet 时显示 ↩ reference。",
@@ -36,6 +93,14 @@ public partial class MainWindow : Window
             }),
         new("null 根 (声明类型)", "根为 null 仍显示声明类型与 null 状态。",
             () => new InspectionRequest { RootName = "nothing", Value = null, DeclaredType = typeof(IAnimal) }),
+        new("导入:JSON 配置", "外部数据源导入:password 键脱敏;数值/布尔/数组保留 JSON 类型语义;子节点分页。",
+            () => ImportSample("json", "config.json", SampleJsonText)),
+        new("导入:YAML(锚点/别名)", "YAML 导入:&common 锚点被 refA/refB 引用 — 物化为同一实例,共享引用检测直接生效。",
+            () => ImportSample("yaml", "devices.yaml", SampleYamlText)),
+        new("导入:XML 设备描述", "XML 导入:属性显示为 @name 成员;重复同名元素用索引路径保持稳定路径唯一;文本叶子直接显示。",
+            () => ImportSample("xml", "device.xml", SampleXmlText)),
+        new("导入:CSV 表", "CSV 导入:首行为表头,数据行物化为字典;ApiKey 列脱敏;含引号转义的单元格。",
+            () => ImportSample("csv", "people.csv", SampleCsvText)),
     ];
 
     public MainWindow()
@@ -44,11 +109,51 @@ public partial class MainWindow : Window
         SampleList.ItemsSource = Samples;
     }
 
+    private static InspectionRequest ImportSample(string format, string rootName, string content)
+    {
+        var result = ImportService.ImportTextAsync(format, content, rootName).GetAwaiter().GetResult();
+        return new InspectionRequest
+        {
+            RootName = result.RootName,
+            Value = result.Value,
+            DeclaredType = result.DeclaredType,
+            CustomAdapters = ObjectViewerFormatAdapters.All,
+        };
+    }
+
     private async void OnSampleSelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (SampleList.SelectedItem is not Sample sample)
             return;
         DescriptionText.Text = sample.Description;
         await Viewer.SetRootAsync(sample.Factory());
+    }
+
+    private async void OnOpenDataSourceClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "打开数据源",
+            Filter = "数据源文件 (*.json;*.yaml;*.yml;*.xml;*.csv)|*.json;*.yaml;*.yml;*.xml;*.csv|所有文件 (*.*)|*.*",
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        try
+        {
+            var result = await ImportService.ImportFileAsync(dialog.FileName);
+            await Viewer.SetRootAsync(new InspectionRequest
+            {
+                RootName = result.RootName,
+                Value = result.Value,
+                DeclaredType = result.DeclaredType,
+                CustomAdapters = ObjectViewerFormatAdapters.All,
+            });
+            DescriptionText.Text = $"已导入 {result.Origin.Format}: {dialog.FileName}({result.Origin.SizeBytes:N0} 字节,一次性快照)";
+        }
+        catch (DataSourceException ex)
+        {
+            MessageBox.Show(this, ex.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 }

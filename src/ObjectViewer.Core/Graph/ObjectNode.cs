@@ -46,8 +46,18 @@ public sealed class ObjectNode
     public ObjectNode? Parent { get; internal set; }
     public IReadOnlyList<ObjectNode> Children => _children;
 
-    /// <summary>Adapter-specific continuation state for paging (offset cursor or materialized dictionary state).</summary>
-    internal object? Continuation { get; set; }
+    /// <summary>Bumped on every refresh; stale async results must be discarded (Proposal §12.2).</summary>
+    public int Version { get; internal set; }
+
+    /// <summary>Set when a refresh observed a changed value/type; consumed by change highlighting (PRD FR-105).</summary>
+    public bool HasChanged { get; internal set; }
+
+    /// <summary>
+    /// Adapter-specific continuation state for paging (offset cursor, materialized
+    /// dictionary state, format-specific entry caches). Part of the adapter contract:
+    /// adapters are stateless, so per-node paging state lives here.
+    /// </summary>
+    public object? Continuation { get; set; }
 
     /// <summary>Ancestor reference chain used for cycle detection (DetectCyclesOnly mode).</summary>
     internal AncestorChain? Ancestors { get; set; }

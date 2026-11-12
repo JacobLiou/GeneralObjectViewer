@@ -5,7 +5,7 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              xmlns:local="clr-namespace:ObjectViewer.Wpf.Collections"
              mc:Ignorable="d"
-             d:DesignHeight="450" d:DesignWidth="800">
+             d:DesignHeight="560" d:DesignWidth="900">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <Style x:Key="CellText" TargetType="TextBlock">
@@ -13,103 +13,216 @@
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="4,0"/>
         </Style>
+        <Style x:Key="ToolButton" TargetType="Button">
+            <Setter Property="Padding" Value="8,2"/>
+            <Setter Property="Margin" Value="2,0"/>
+        </Style>
     </UserControl.Resources>
 
-    <Grid>
-        <DataGrid x:Name="PartGrid"
-                  ItemsSource="{Binding VisibleNodes}"
-                  AutoGenerateColumns="False"
-                  EnableRowVirtualization="True"
-                  EnableColumnVirtualization="True"
-                  VirtualizingPanel.IsVirtualizing="True"
-                  VirtualizingPanel.VirtualizationMode="Recycling"
-                  ScrollViewer.CanContentScroll="True"
-                  HeadersVisibility="Column"
-                  SelectionMode="Single"
-                  SelectionUnit="FullRow"
-                  CanUserAddRows="False"
-                  CanUserDeleteRows="False"
-                  IsReadOnly="True"
-                  GridLinesVisibility="None"
-                  RowHeight="24"
-                  BorderThickness="0"
-                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
-                  KeyDown="OnGridKeyDown"
-                  MouseDoubleClick="OnGridMouseDoubleClick">
-            <DataGrid.ContextMenu>
-                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
-                    <MenuItem Header="Copy Value" Command="{Binding CopyValueCommand}" CommandParameter="{Binding SelectedRow}"/>
-                    <MenuItem Header="Copy Display Path" Command="{Binding CopyDisplayPathCommand}" CommandParameter="{Binding SelectedRow}"/>
-                    <MenuItem Header="Copy Stable Path" Command="{Binding CopyStablePathCommand}" CommandParameter="{Binding SelectedRow}"/>
-                </ContextMenu>
-            </DataGrid.ContextMenu>
-            <DataGrid.CellStyle>
-                <Style TargetType="DataGridCell">
-                    <Setter Property="BorderThickness" Value="0"/>
-                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                </Style>
-            </DataGrid.CellStyle>
-            <DataGrid.Columns>
-                <DataGridTemplateColumn Header="Name" Width="2*">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate DataType="{x:Type local:VisibleObjectNode}">
-                            <StackPanel Orientation="Horizontal">
-                                <Border Width="{Binding IndentWidth}"/>
-                                <Button Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+    <DockPanel>
+        <!-- Toolbar (PRD §8.2 subset for V0.2) -->
+        <Border DockPanel.Dock="Top" Background="#F3F3F3" Padding="6,4">
+            <StackPanel Orientation="Horizontal">
+                <TextBox Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                         Width="170" VerticalContentAlignment="Center"
+                         KeyDown="OnSearchBoxKeyDown" AutomationProperties.Name="Search Text"/>
+                <ComboBox SelectedIndex="{Binding SearchScopeIndex}" Margin="4,0,0,0" MinWidth="70"
+                          AutomationProperties.Name="Search Scope">
+                    <ComboBoxItem Content="已加载"/>
+                    <ComboBoxItem Content="深度"/>
+                </ComboBox>
+                <Button Style="{StaticResource ToolButton}" Content="搜索" Command="{Binding SearchCommand}" Margin="4,0,10,0"/>
+
+                <Button Style="{StaticResource ToolButton}" Content="刷新节点" Command="{Binding RefreshSelectedCommand}"/>
+                <Button Style="{StaticResource ToolButton}" Content="刷新子树" Command="{Binding RefreshSubtreeCommand}"/>
+                <Button Style="{StaticResource ToolButton}" Content="全部刷新" Command="{Binding RefreshAllCommand}"/>
+                <CheckBox Content="高亮变化" IsChecked="{Binding HighlightChanges}" VerticalContentAlignment="Center" Margin="6,0,10,0"/>
+
+                <Button Style="{StaticResource ToolButton}" Content="📸 快照" Command="{Binding CaptureSnapshotCommand}"/>
+                <ComboBox ItemsSource="{Binding Snapshots}"
+                          DisplayMemberPath="DisplayName"
+                          SelectedItem="{Binding SelectedSnapshot}"
+                          MinWidth="130" Margin="4,0"/>
+                <Button Style="{StaticResource ToolButton}" Content="对比" Command="{Binding CompareSnapshotsCommand}"/>
+
+                <TextBlock Text="{Binding StatusText}" VerticalAlignment="Center" Margin="14,0,0,0"
+                           Foreground="#FF666666" TextTrimming="CharacterEllipsis"/>
+            </StackPanel>
+        </Border>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <DataGrid x:Name="PartGrid"
+                      Grid.Row="0"
+                      ItemsSource="{Binding VisibleNodes}"
+                      AutoGenerateColumns="False"
+                      EnableRowVirtualization="True"
+                      EnableColumnVirtualization="True"
+                      VirtualizingPanel.IsVirtualizing="True"
+                      VirtualizingPanel.VirtualizationMode="Recycling"
+                      ScrollViewer.CanContentScroll="True"
+                      HeadersVisibility="Column"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      IsReadOnly="True"
+                      GridLinesVisibility="None"
+                      RowHeight="24"
+                      BorderThickness="0"
+                      SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                      KeyDown="OnGridKeyDown"
+                      MouseDoubleClick="OnGridMouseDoubleClick">
+                <DataGrid.ContextMenu>
+                    <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                        <MenuItem Header="Copy Value" Command="{Binding CopyValueCommand}" CommandParameter="{Binding SelectedRow}"/>
+                        <MenuItem Header="Copy Display Path" Command="{Binding CopyDisplayPathCommand}" CommandParameter="{Binding SelectedRow}"/>
+                        <MenuItem Header="Copy Stable Path" Command="{Binding CopyStablePathCommand}" CommandParameter="{Binding SelectedRow}"/>
+                    </ContextMenu>
+                </DataGrid.ContextMenu>
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Style.Triggers>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding Node.IsChanged}" Value="True"/>
+                                    <Condition Binding="{Binding DataContext.HighlightChanges, RelativeSource={RelativeSource AncestorType=UserControl}}" Value="True"/>
+                                </MultiDataTrigger.Conditions>
+                                <Setter Property="Background" Value="#FFFFF3C4"/>
+                            </MultiDataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="BorderThickness" Value="0"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                    </Style>
+                </DataGrid.CellStyle>
+                <DataGrid.Columns>
+                    <DataGridTemplateColumn Header="Name" Width="2*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type local:VisibleObjectNode}">
+                                <StackPanel Orientation="Horizontal">
+                                    <Border Width="{Binding IndentWidth}"/>
+                                    <Button Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                            CommandParameter="{Binding}"
+                                            Content="{Binding Node.ToggleGlyph}"
+                                            Visibility="{Binding Node.ShowToggle, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                            Focusable="False"
+                                            Cursor="Hand"
+                                            Background="Transparent"
+                                            BorderThickness="0"
+                                            Margin="0,0,4,0"
+                                            Padding="2,0"
+                                            FontSize="11"
+                                            AutomationProperties.Name="{Binding Node.Name}"/>
+                                    <TextBlock Text="{Binding Node.KindGlyph}" VerticalAlignment="Center" Foreground="#50909090" FontSize="12"/>
+                                    <TextBlock Text="{Binding Node.Name}" Style="{StaticResource CellText}" AutomationProperties.Name="{Binding Node.Name}"/>
+                                    <TextBlock Text="{Binding Node.StateGlyph}" VerticalAlignment="Center" Foreground="#C0A04000" FontSize="11" Margin="4,0,0,0"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="Value" Width="3*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate DataType="{x:Type local:VisibleObjectNode}">
+                                <TextBlock Text="{Binding Node.ValueText}"
+                                           ToolTip="{Binding Node.ToolTip}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+                                            <Setter Property="Foreground" Value="#FF333333"/>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Node.IsMasked}" Value="True">
+                                                    <Setter Property="FontStyle" Value="Italic"/>
+                                                    <Setter Property="Foreground" Value="#FF888888"/>
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding Node.HasError}" Value="True">
+                                                    <Setter Property="Foreground" Value="#FFB04040"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Type" Binding="{Binding Node.TypeText}" Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}"/>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                    <DataGridTextColumn Header="Declared Type" Binding="{Binding Node.DeclaredTypeText}" Width="*">
+                        <DataGridTextColumn.ElementStyle>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+                                <Setter Property="Foreground" Value="#FF707070"/>
+                            </Style>
+                        </DataGridTextColumn.ElementStyle>
+                    </DataGridTextColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <!-- Search results / snapshot diff (PRD FR-091, FR-112) -->
+            <TabControl Grid.Row="1"
+                        Height="160"
+                        SelectedIndex="{Binding BottomTabIndex}"
+                        Visibility="{Binding HasBottomContent, Converter={StaticResource BooleanToVisibilityConverter}}">
+                <TabItem Header="搜索结果">
+                    <ListBox ItemsSource="{Binding SearchResults}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Button Command="{Binding DataContext.NavigateToResultCommand, RelativeSource={RelativeSource AncestorType=TabControl}}"
                                         CommandParameter="{Binding}"
-                                        Content="{Binding ToggleGlyph}"
-                                        Visibility="{Binding ShowToggle, Converter={StaticResource BooleanToVisibilityConverter}}"
-                                        Focusable="False"
-                                        Cursor="Hand"
-                                        Background="Transparent"
-                                        BorderThickness="0"
-                                        Margin="0,0,4,0"
-                                        Padding="2,0"
-                                        FontSize="11"
-                                        AutomationProperties.Name="{Binding Name}"/>
-                                <TextBlock Text="{Binding KindGlyph}" VerticalAlignment="Center" Foreground="#50909090" FontSize="12"/>
-                                <TextBlock Text="{Binding Name}" Style="{StaticResource CellText}" AutomationProperties.Name="{Binding Name}"/>
-                                <TextBlock Text="{Binding StateGlyph}" VerticalAlignment="Center" Foreground="#C0A04000" FontSize="11" Margin="4,0,0,0"/>
-                            </StackPanel>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="Value" Width="3*">
-                    <DataGridTemplateColumn.CellTemplate>
-                        <DataTemplate DataType="{x:Type local:VisibleObjectNode}">
-                            <TextBlock Text="{Binding ValueText}"
-                                       ToolTip="{Binding ToolTip}">
-                                <TextBlock.Style>
-                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}">
-                                        <Setter Property="Foreground" Value="#FF333333"/>
-                                        <Style.Triggers>
-                                            <DataTrigger Binding="{Binding IsMasked}" Value="True">
-                                                <Setter Property="FontStyle" Value="Italic"/>
-                                                <Setter Property="Foreground" Value="#FF888888"/>
-                                            </DataTrigger>
-                                            <DataTrigger Binding="{Binding HasError}" Value="True">
-                                                <Setter Property="Foreground" Value="#FFB04040"/>
-                                            </DataTrigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                </TextBlock.Style>
-                            </TextBlock>
-                        </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                </DataGridTemplateColumn>
-                <DataGridTextColumn Header="Type" Binding="{Binding TypeText}" Width="*">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}"/>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-                <DataGridTextColumn Header="Declared Type" Binding="{Binding DeclaredTypeText}" Width="*">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}">
-                            <Setter Property="Foreground" Value="#FF707070"/>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                </DataGridTextColumn>
-            </DataGrid.Columns>
-        </DataGrid>
-    </Grid>
+                                        Background="Transparent" BorderThickness="0" HorizontalAlignment="Left"
+                                        Cursor="Hand" ToolTip="{Binding ValueText}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="{Binding DisplayPath}" Foreground="#FF0066CC"/>
+                                        <TextBlock Text=" = " Foreground="#FF999999"/>
+                                        <TextBlock Text="{Binding ValueText}" Foreground="#FF444444" TextTrimming="CharacterEllipsis" MaxWidth="420"/>
+                                    </StackPanel>
+                                </Button>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+                <TabItem Header="快照对比">
+                    <ListBox ItemsSource="{Binding DiffResults}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="{Binding State}" Width="90" FontWeight="Bold">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Foreground" Value="#FF444444"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding State}" Value="Added">
+                                                        <Setter Property="Foreground" Value="#FF107C10"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="Removed">
+                                                        <Setter Property="Foreground" Value="#FFC42B1C"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="Changed">
+                                                        <Setter Property="Foreground" Value="#FFB06000"/>
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding State}" Value="TypeChanged">
+                                                        <Setter Property="Foreground" Value="#FF886CE4"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                    <TextBlock Text="{Binding DisplayPath}" Foreground="#FF0066CC" Margin="0,0,8,0"/>
+                                    <TextBlock Text="{Binding Detail}" Foreground="#FF444444" TextTrimming="CharacterEllipsis"/>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </TabItem>
+            </TabControl>
+        </Grid>
+    </DockPanel>
 </UserControl>

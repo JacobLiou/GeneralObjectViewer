@@ -1,5 +1,4 @@
 using System.Collections.ObjectModel;
-using ObjectViewer.Core.Graph;
 using ObjectViewer.Wpf.ViewModels;
 
 namespace ObjectViewer.Wpf.Collections;
@@ -74,7 +73,7 @@ public sealed class VisibleNodeCollection : ObservableCollection<VisibleObjectNo
     }
 }
 
-/// <summary>One flat grid row wrapping a node view model (Proposal §16.3).</summary>
+/// <summary>Thin grid row: the node view model plus its visual indent (Proposal §16.3).</summary>
 public sealed class VisibleObjectNode
 {
     public VisibleObjectNode(ObjectNodeViewModel node) => Node = node;
@@ -84,64 +83,4 @@ public sealed class VisibleObjectNode
     public int Indent => Node.Node.Depth;
 
     public double IndentWidth => 14.0 * Indent;
-
-    public string Name => Node.Name;
-
-    public string ValueText => Node.ValueText;
-
-    public string TypeText => Node.TypeText;
-
-    public string DeclaredTypeText => Node.DeclaredTypeText;
-
-    public string ToolTip => Node.ToolTip;
-
-    public bool ShowToggle => Node.Node.CanExpand || Node.IsLoadMore;
-
-    public string ToggleGlyph => Node.IsExpanded ? "▾" : "▸";
-
-    public string KindGlyph => Glyphs.For(Node.Node);
-
-    public string StateGlyph
-    {
-        get
-        {
-            if (Node.IsBusy)
-                return "…";
-            if (Node.Node.Error is not null || Node.Node.Kind == ObjectNodeKind.Error)
-                return "⚠";
-            if (Node.Node.Display.IsTruncated)
-                return "…";
-            return string.Empty;
-        }
-    }
-
-    public bool IsMasked => Node.Node.Display.IsMasked;
-
-    public bool HasError => Node.Node.Error is not null || Node.Node.Kind == ObjectNodeKind.Error;
-
-    public string AutomationDescription
-        => $"{Name}, value {ValueText}, type {TypeText}, depth {Indent}";
-}
-
-internal static class Glyphs
-{
-    public static string For(Core.Graph.ObjectNode node) => node.Kind switch
-    {
-        Core.Graph.ObjectNodeKind.LoadMore => "…",
-        Core.Graph.ObjectNodeKind.Truncated => "…",
-        Core.Graph.ObjectNodeKind.Error => "⚠",
-        Core.Graph.ObjectNodeKind.Reference => "↩",
-        _ => node.ValueKind switch
-        {
-            Core.Graph.ObjectValueKind.Null => "∅",
-            Core.Graph.ObjectValueKind.Primitive => "●",
-            Core.Graph.ObjectValueKind.String => "”",
-            Core.Graph.ObjectValueKind.Enum => "⊙",
-            Core.Graph.ObjectValueKind.ByteArray => "▒",
-            Core.Graph.ObjectValueKind.Collection => "▦",
-            Core.Graph.ObjectValueKind.Dictionary => "▤",
-            Core.Graph.ObjectValueKind.Reference => "↩",
-            _ => "◆",
-        },
-    };
 }

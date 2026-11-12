@@ -35,6 +35,14 @@ public sealed record InspectionRequest
     public object? Value { get; init; }
     public Type? DeclaredType { get; init; }
     public InspectionOptions Options { get; init; } = InspectionOptions.SafeDefault;
+
+    /// <summary>
+    /// Host-registered adapters (e.g. format adapters for imported data sources);
+    /// merged with the defaults and resolved by the same deterministic priority (PRD FR-130/134).
+    /// </summary>
+    public IReadOnlyList<Adapters.IObjectAdapter>? CustomAdapters { get; init; }
+
+    public IReadOnlyList<Formatting.IObjectValueFormatter>? CustomFormatters { get; init; }
 }
 
 /// <summary>Offset-based paging cursor for indexable collections.</summary>

@@ -3,11 +3,11 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:viewer="clr-namespace:ObjectViewer.Wpf.Controls;assembly=ObjectViewer.Wpf"
         Title="通用 Object Viewer — Demo"
-        Height="720" Width="1200"
+        Height="760" Width="1280"
         WindowStartupLocation="CenterScreen">
     <Grid>
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="260"/>
+            <ColumnDefinition Width="280"/>
             <ColumnDefinition Width="5"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
@@ -15,13 +15,19 @@
         <Grid Grid.Column="0">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
             </Grid.RowDefinitions>
             <TextBlock Text="示例对象 (PRD §16)"
                        FontWeight="Bold" FontSize="13"
                        Margin="10,10,10,6"/>
+            <Button x:Name="OpenDataSourceButton"
+                    Grid.Row="1"
+                    Content="📂 打开数据源文件…(JSON/YAML/XML/CSV)"
+                    Margin="10,0,10,8" Padding="6"
+                    Click="OnOpenDataSourceClick"/>
             <ListBox x:Name="SampleList"
-                     Grid.Row="1"
+                     Grid.Row="2"
                      DisplayMemberPath="Title"
                      SelectionChanged="OnSampleSelectionChanged"
                      Margin="10,0,10,10"

@@ -231,6 +231,186 @@ public sealed class ObjectGraphExplorer
     private bool IsStale(long generation)
         => _session.IsDisposed || generation != _session.Generation;
 
+    /// <summary>
+    /// Refreshes already-loaded nodes by re-reading their backing members instead of
+    /// rebuilding the tree (PRD FR-101, Proposal §18.1). Type changes invalidate the
+    /// loaded children so the next expansion reloads them.
+    /// </summary>
+    public async Task<NodeRefreshResult> RefreshAsync(ObjectNode node, RefreshScope scope, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        var targets = scope switch
+        {
+            RefreshScope.Node => [node],
+            RefreshScope.Subtree => CollectLoaded(node, includeSelf: true),
+            RefreshScope.LoadedTree => CollectLoaded(_session.Root ?? node, includeSelf: true),
+            _ => [node],
+        };
+
+        var changed = 0;
+        var invalidated = 0;
+        await Task.Yield();
+        foreach (var target in targets)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            target.Version++;
+            switch (RefreshNode(target))
+            {
+                case RefreshOutcome.Changed:
+                    changed++;
+                    break;
+                case RefreshOutcome.Invalidated:
+                    invalidated++;
+                    changed++;
+                    break;
+            }
+        }
+
+        _session.Diagnostics.Record("RefreshCompleted", $"targets={targets.Count}, changed={changed}, invalidated={invalidated}");
+        return new NodeRefreshResult(targets.Count, changed, invalidated);
+    }
+
+    private enum RefreshOutcome
+    {
+        Unchanged,
+        Changed,
+        Invalidated,
+    }
+
+    private static List<ObjectNode> CollectLoaded(ObjectNode start, bool includeSelf)
+    {
+        var result = new List<ObjectNode>();
+        if (includeSelf && start.Kind != ObjectNodeKind.Root)
+            result.Add(start);
+
+        CollectLoadedCore(start, result);
+        return result;
+
+        static void CollectLoadedCore(ObjectNode node, List<ObjectNode> result)
+        {
+            foreach (var child in node.Children)
+            {
+                if (child.Kind is ObjectNodeKind.LoadMore or ObjectNodeKind.Truncated or ObjectNodeKind.Loading)
+                    continue;
+                result.Add(child);
+                CollectLoadedCore(child, result);
+            }
+        }
+    }
+
+    private RefreshOutcome RefreshNode(ObjectNode node)
+    {
+        var oldText = node.Display.Text;
+        var oldTypeText = node.Display.TypeText;
+        var oldRuntimeType = node.RuntimeType;
+        var hadChildren = node.Children.Count > 0;
+
+        if (node.Accessor is not null && node.Owner is not null)
+        {
+            var (value, error) = MemberReader.Read(node.Accessor, node.Owner, _session, node.NodeId);
+            if (error is not null)
+            {
+                var nodeError = NodeError.FromException(error);
+                var isNew = node.Error?.Message != nodeError.Message;
+                node.Error = nodeError;
+                node.Display = new ValueDisplay(
+                    TruncateText($"{nodeError.ExceptionType}: {nodeError.Message}"),
+                    TypeNames.Get(node.DeclaredType),
+                    ToolTip: nodeError.Message);
+                node.HasChanged = isNew;
+                return isNew ? RefreshOutcome.Changed : RefreshOutcome.Unchanged;
+            }
+
+            node.Error = null;
+            node.RawValue = value;
+            ApplyDescription(node);
+            var changed = node.Display.Text != oldText
+                || node.Display.TypeText != oldTypeText
+                || node.RuntimeType != oldRuntimeType;
+            node.HasChanged = changed;
+
+            if (node.RuntimeType != oldRuntimeType && hadChildren)
+            {
+                InvalidateChildren(node);
+                return RefreshOutcome.Invalidated;
+            }
+
+            return changed ? RefreshOutcome.Changed : RefreshOutcome.Unchanged;
+        }
+
+        // Nodes without an in-place read path (root, collections, imported values):
+        // invalidate loaded children so the caller can reload on demand.
+        if (hadChildren || node.LoadState == NodeLoadState.Loaded)
+        {
+            InvalidateChildren(node);
+            return RefreshOutcome.Invalidated;
+        }
+
+        return RefreshOutcome.Unchanged;
+    }
+
+    /// <summary>Re-describes a node's value after a refresh read; re-renders references without re-registering identity.</summary>
+    private void ApplyDescription(ObjectNode node)
+    {
+        var value = node.RawValue;
+
+        if (node.IsSensitive)
+        {
+            node.Display = ValueDisplay.Masked(TypeNames.Get(node.DeclaredType));
+            node.CanExpand = false;
+            return;
+        }
+
+        if (value is null)
+        {
+            node.ValueKind = ObjectValueKind.Null;
+            node.Display = new ValueDisplay("null", TypeNames.Get(node.DeclaredType));
+            node.CanExpand = false;
+            return;
+        }
+
+        if (ObjectIdentityMap.IsTrackable(value))
+        {
+            node.Ancestors = new AncestorChain(node.Parent?.Ancestors, value, node.Path);
+
+            // Restore reference semantics: cycles via the ancestor chain, shared
+            // occurrences via the session first-seen table (never re-registering).
+            var target = node.Parent?.Ancestors?.Find(value)
+                ?? _session.IdentityMap.FindShared(value, node.Path);
+            if (target is not null)
+            {
+                node.ValueKind = ObjectValueKind.Reference;
+                node.Display = new ValueDisplay("↩ reference to " + target.ToDisplayPath(), TypeNames.Get(node.RuntimeType));
+                node.CanExpand = false;
+                return;
+            }
+        }
+
+        var adapterContext = new ObjectAdapterContext(value, node.DeclaredType, node.Accessor?.MemberInfo);
+        try
+        {
+            var adapter = _session.Adapters.Resolve(adapterContext, _session);
+            var descriptor = adapter.Describe(adapterContext, _session);
+            node.ValueKind = descriptor.ValueKind;
+            node.Display = descriptor.Display;
+            node.CanExpand = descriptor.CanExpand;
+        }
+        catch (Exception ex)
+        {
+            _session.Diagnostics.Record("DescribeFailed", ex.GetType().Name, node.NodeId);
+            var typeText = TypeNames.Get(node.RuntimeType);
+            node.Display = new ValueDisplay("{" + typeText + "}", typeText);
+            node.CanExpand = false;
+        }
+    }
+
+    private static void InvalidateChildren(ObjectNode node)
+    {
+        node.Continuation = null;
+        node.ReplaceChildren([]);
+        node.LoadState = NodeLoadState.NotLoaded;
+    }
+
     private ObjectNode CreateChildNode(ObjectNode parent, ObjectMemberDescriptor descriptor)
     {
         var child = new ObjectNode(

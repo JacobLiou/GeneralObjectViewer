@@ -37,7 +37,7 @@ public sealed class DefaultObjectAdapter : IObjectAdapter
             if (!decision.Include)
                 continue;
 
-            var (value, error) = ReadIsolated(member, owner, session, node);
+            var (value, error) = MemberReader.Read(member, owner, session, node.NodeId);
             children.Add(new ObjectMemberDescriptor(
                 Name: decision.DisplayName,
                 Value: value,
@@ -51,26 +51,5 @@ public sealed class DefaultObjectAdapter : IObjectAdapter
         }
 
         return Task.FromResult(new ChildPageResult(children));
-    }
-
-    private static (object? Value, Exception? Error) ReadIsolated(
-        MemberAccessor member, object owner, InspectionSession session, ObjectNode node)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        try
-        {
-            var value = member.Getter(owner);
-            stopwatch.Stop();
-            if (stopwatch.Elapsed >= session.Options.GetterWarningThreshold)
-                session.Diagnostics.Record("GetterSlow", $"{member.Name} took {stopwatch.ElapsedMilliseconds}ms", node.NodeId);
-            return (value, null);
-        }
-        catch (Exception ex)
-        {
-            stopwatch.Stop();
-            var actual = NodeError.Unwrap(ex);
-            session.Diagnostics.Record("GetterFailed", $"{member.Name}: {actual.GetType().Name}", node.NodeId);
-            return (null, actual);
-        }
     }
 }

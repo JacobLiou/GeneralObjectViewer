@@ -5,7 +5,8 @@ namespace ObjectViewer.Wpf.ViewModels;
 
 /// <summary>
 /// Presentation wrapper around a Core <see cref="ObjectNode"/> (Proposal §16.2).
-/// Holds only UI state (expansion, busy); all data comes from the core node.
+/// All display-facing properties are INPC so a refresh can update visible cells
+/// in place; glyphs and state badges derive from the core node.
 /// </summary>
 public partial class ObjectNodeViewModel : ObservableObject
 {
@@ -31,6 +32,9 @@ public partial class ObjectNodeViewModel : ObservableObject
     [ObservableProperty]
     private bool isBusy;
 
+    [ObservableProperty]
+    private bool isChanged;
+
     public string Name => Node.Name;
 
     public string ValueText => Node.Display.Text;
@@ -41,9 +45,78 @@ public partial class ObjectNodeViewModel : ObservableObject
 
     public string ToolTip => Node.Display.ToolTip ?? Node.Display.Text;
 
+    public int Depth => Node.Depth;
+
     public bool IsLoadMore => Node.Kind == ObjectNodeKind.LoadMore;
 
-    /// <summary>Rebuilds child view models from the core node after a load (used by expand and failed retries).</summary>
+    public bool ShowToggle => Node.CanExpand || IsLoadMore;
+
+    public string ToggleGlyph => IsExpanded ? "▾" : "▸";
+
+    public string KindGlyph => Node.Kind switch
+    {
+        ObjectNodeKind.LoadMore => "…",
+        ObjectNodeKind.Truncated => "…",
+        ObjectNodeKind.Error => "⚠",
+        _ => Node.ValueKind switch
+        {
+            ObjectValueKind.Null => "∅",
+            ObjectValueKind.Primitive => "●",
+            ObjectValueKind.String => "”",
+            ObjectValueKind.Enum => "⊙",
+            ObjectValueKind.ByteArray => "▒",
+            ObjectValueKind.Collection => "▦",
+            ObjectValueKind.Dictionary => "▤",
+            ObjectValueKind.Reference => "↩",
+            _ => "◆",
+        },
+    };
+
+    public string StateGlyph
+    {
+        get
+        {
+            if (IsBusy)
+                return "…";
+            if (Node.Error is not null || Node.Kind == ObjectNodeKind.Error)
+                return "⚠";
+            if (Node.Display.IsTruncated)
+                return "…";
+            return string.Empty;
+        }
+    }
+
+    public bool IsMasked => Node.Display.IsMasked;
+
+    public bool HasError => Node.Error is not null || Node.Kind == ObjectNodeKind.Error;
+
+    /// <summary>Raises change notifications for every display-facing property after a refresh (PRD FR-105).</summary>
+    public void RaiseDataChanged()
+    {
+        IsChanged = Node.HasChanged;
+        OnPropertyChanged(nameof(Name));
+        OnPropertyChanged(nameof(ValueText));
+        OnPropertyChanged(nameof(TypeText));
+        OnPropertyChanged(nameof(DeclaredTypeText));
+        OnPropertyChanged(nameof(ToolTip));
+        OnPropertyChanged(nameof(ShowToggle));
+        OnPropertyChanged(nameof(ToggleGlyph));
+        OnPropertyChanged(nameof(KindGlyph));
+        OnPropertyChanged(nameof(StateGlyph));
+        OnPropertyChanged(nameof(IsMasked));
+        OnPropertyChanged(nameof(HasError));
+    }
+
+    partial void OnIsExpandedChanged(bool value)
+    {
+        OnPropertyChanged(nameof(ToggleGlyph));
+        OnPropertyChanged(nameof(ShowToggle));
+    }
+
+    partial void OnIsBusyChanged(bool value)
+        => OnPropertyChanged(nameof(StateGlyph));
+
+    /// <summary>Rebuilds child view models from the core node after a load.</summary>
     public void RebuildChildVms()
     {
         _childVms.Clear();
@@ -51,7 +124,7 @@ public partial class ObjectNodeViewModel : ObservableObject
             _childVms.Add(new ObjectNodeViewModel(child, this, _owner));
     }
 
-    /// <summary>Appends view models for nodes added by a LoadMore page (marker replacement).</summary>
+    /// <summary>Appends view models for nodes added by a LoadMore page.</summary>
     public void AppendChildVms(IEnumerable<ObjectNode> nodes)
     {
         foreach (var node in nodes)

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Description>External data source import providers (JSON/YAML/XML/CSV) and format display adapters.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" Version="16.1.0" />
+    <ProjectReference Include="..\ObjectViewer.Core\ObjectViewer.Core.csproj" />
+  </ItemGroup>
+
+</Project>
