@@ -1,0 +1,8 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Description>Generic runtime object viewer core. UI-free inspection session, adapters, paths, formatting and policies.</Description>
+  </PropertyGroup>
+
+</Project>

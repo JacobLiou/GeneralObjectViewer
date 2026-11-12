@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Description>Demo host for the generic Object Viewer (PRD §19 DoD).</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ObjectViewer.Wpf\ObjectViewer.Wpf.csproj" />
+    <ProjectReference Include="..\..\tests\ObjectViewer.TestModels\ObjectViewer.TestModels.csproj" />
+  </ItemGroup>
+
+</Project>

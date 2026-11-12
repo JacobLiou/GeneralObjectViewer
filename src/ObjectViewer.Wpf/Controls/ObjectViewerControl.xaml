@@ -1,0 +1,115 @@
+<UserControl x:Class="ObjectViewer.Wpf.Controls.ObjectViewerControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ObjectViewer.Wpf.Collections"
+             mc:Ignorable="d"
+             d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <Style x:Key="CellText" TargetType="TextBlock">
+            <Setter Property="TextTrimming" Value="CharacterEllipsis"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="4,0"/>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <DataGrid x:Name="PartGrid"
+                  ItemsSource="{Binding VisibleNodes}"
+                  AutoGenerateColumns="False"
+                  EnableRowVirtualization="True"
+                  EnableColumnVirtualization="True"
+                  VirtualizingPanel.IsVirtualizing="True"
+                  VirtualizingPanel.VirtualizationMode="Recycling"
+                  ScrollViewer.CanContentScroll="True"
+                  HeadersVisibility="Column"
+                  SelectionMode="Single"
+                  SelectionUnit="FullRow"
+                  CanUserAddRows="False"
+                  CanUserDeleteRows="False"
+                  IsReadOnly="True"
+                  GridLinesVisibility="None"
+                  RowHeight="24"
+                  BorderThickness="0"
+                  SelectedItem="{Binding SelectedRow, Mode=TwoWay}"
+                  KeyDown="OnGridKeyDown"
+                  MouseDoubleClick="OnGridMouseDoubleClick">
+            <DataGrid.ContextMenu>
+                <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                    <MenuItem Header="Copy Value" Command="{Binding CopyValueCommand}" CommandParameter="{Binding SelectedRow}"/>
+                    <MenuItem Header="Copy Display Path" Command="{Binding CopyDisplayPathCommand}" CommandParameter="{Binding SelectedRow}"/>
+                    <MenuItem Header="Copy Stable Path" Command="{Binding CopyStablePathCommand}" CommandParameter="{Binding SelectedRow}"/>
+                </ContextMenu>
+            </DataGrid.ContextMenu>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                </Style>
+            </DataGrid.CellStyle>
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="Name" Width="2*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type local:VisibleObjectNode}">
+                            <StackPanel Orientation="Horizontal">
+                                <Border Width="{Binding IndentWidth}"/>
+                                <Button Command="{Binding DataContext.ToggleCommand, RelativeSource={RelativeSource AncestorType=DataGrid}}"
+                                        CommandParameter="{Binding}"
+                                        Content="{Binding ToggleGlyph}"
+                                        Visibility="{Binding ShowToggle, Converter={StaticResource BooleanToVisibilityConverter}}"
+                                        Focusable="False"
+                                        Cursor="Hand"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Margin="0,0,4,0"
+                                        Padding="2,0"
+                                        FontSize="11"
+                                        AutomationProperties.Name="{Binding Name}"/>
+                                <TextBlock Text="{Binding KindGlyph}" VerticalAlignment="Center" Foreground="#50909090" FontSize="12"/>
+                                <TextBlock Text="{Binding Name}" Style="{StaticResource CellText}" AutomationProperties.Name="{Binding Name}"/>
+                                <TextBlock Text="{Binding StateGlyph}" VerticalAlignment="Center" Foreground="#C0A04000" FontSize="11" Margin="4,0,0,0"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="Value" Width="3*">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate DataType="{x:Type local:VisibleObjectNode}">
+                            <TextBlock Text="{Binding ValueText}"
+                                       ToolTip="{Binding ToolTip}">
+                                <TextBlock.Style>
+                                    <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+                                        <Setter Property="Foreground" Value="#FF333333"/>
+                                        <Style.Triggers>
+                                            <DataTrigger Binding="{Binding IsMasked}" Value="True">
+                                                <Setter Property="FontStyle" Value="Italic"/>
+                                                <Setter Property="Foreground" Value="#FF888888"/>
+                                            </DataTrigger>
+                                            <DataTrigger Binding="{Binding HasError}" Value="True">
+                                                <Setter Property="Foreground" Value="#FFB04040"/>
+                                            </DataTrigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </TextBlock.Style>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTextColumn Header="Type" Binding="{Binding TypeText}" Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}"/>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+                <DataGridTextColumn Header="Declared Type" Binding="{Binding DeclaredTypeText}" Width="*">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock" BasedOn="{StaticResource CellText}">
+                            <Setter Property="Foreground" Value="#FF707070"/>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>
