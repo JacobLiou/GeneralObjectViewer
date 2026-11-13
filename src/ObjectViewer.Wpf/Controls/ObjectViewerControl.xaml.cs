@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
+using System.Windows.Threading;
 using ObjectViewer.Core.Graph;
 using ObjectViewer.Wpf.ViewModels;
 
@@ -72,7 +73,16 @@ public partial class ObjectViewerControl : UserControl
             return;
 
         if (row.Node.CanEdit)
-            ViewModel.BeginEditCommand.Execute(row); // editable row: open the inline editor
+        {
+            // MouseDoubleClick fires on the second mouse-down, so the trailing
+            // mouse-up is still in flight. A StaysOpen=false popup opened now
+            // treats that pending up as an outside click and closes instantly.
+            // Defer to Background (below input priority) so the gesture fully
+            // completes before the popup takes mouse capture (FR-122).
+            Dispatcher.InvokeAsync(
+                () => ViewModel.BeginEditCommand.Execute(row), // editable row: open the inline editor
+                DispatcherPriority.Background);
+        }
         else
             _ = ViewModel.ToggleAsync(row);           // otherwise keep expand/collapse
         e.Handled = true;

@@ -20,3 +20,4 @@
 - 转换: `Editing/EditValueParser`(null 关键字 / Nullable / 枚举 / 数值按 Culture / DateTime / Guid / TypeConverter;自定义 `IEditValueConverter` 经 `InspectionRequest.CustomEditConverters` 注册,优先于内置)
 - 写入: 校验 → 转换 → Setter(异常只落在该节点, FR-124)→ 重读 + `ApplyDescription` → 有子节点则失效待重载;审计事件不记录原值(FR-126)
 - UI: 双击/F2/右键 → Popup 内联编辑(`ObjectViewerControl`);可编辑值带 ✎ 标记;Enter 确认、Esc 取消、失败红字保持弹层
+  - 双击路径必须在 `DispatcherPriority.Background` 延迟打开: `MouseDoubleClick` 在第二次 MouseDown 时触发,若立即打开 `StaysOpen=False` 弹层,尾随的 MouseUp 会被判为外部点击导致弹层闪关(FR-122)
