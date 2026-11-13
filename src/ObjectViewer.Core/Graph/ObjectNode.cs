@@ -46,6 +46,13 @@ public sealed class ObjectNode
     public ObjectNode? Parent { get; internal set; }
     public IReadOnlyList<ObjectNode> Children => _children;
 
+    /// <summary>
+    /// True when this node's value may be changed through <see cref="ObjectGraphExplorer.WriteAsync"/>
+    /// (PRD FR-012/121). Computed at creation from the member policy; the write path
+    /// re-validates it, so a stale flag can never lead to an unintended write.
+    /// </summary>
+    public bool CanEdit { get; internal set; }
+
     /// <summary>Bumped on every refresh; stale async results must be discarded (Proposal §12.2).</summary>
     public int Version { get; internal set; }
 

@@ -93,6 +93,20 @@ public partial class MainWindow : Window
             }),
         new("null 根 (声明类型)", "根为 null 仍显示声明类型与 null 状态。",
             () => new InspectionRequest { RootName = "nothing", Value = null, DeclaredType = typeof(IAnimal) }),
+        new("编辑: PublicSetters", "双击或 F2 编辑带 ✎ 的成员:数值/字符串/枚举/可空/DateTime/Guid/自定义 TypeConverter;getter-only、私有 setter、敏感成员不可编辑;输入 null 置空;写错显示红字且原值不动。",
+            () => new InspectionRequest
+            {
+                RootName = "machine",
+                Value = new EditableMachine(),
+                Options = InspectionOptions.SafeDefault with { EditPolicy = EditPolicyMode.PublicSetters },
+            }),
+        new("编辑: 白名单 [Editable]", "ExplicitlyAllowedMembers 策略:仅标注 [ObjectViewerEditable] 的 Whitelisted 可编辑,其余一律只读。",
+            () => new InspectionRequest
+            {
+                RootName = "machine",
+                Value = new EditableMachine(),
+                Options = InspectionOptions.SafeDefault with { EditPolicy = EditPolicyMode.ExplicitlyAllowedMembers },
+            }),
         new("导入:JSON 配置", "外部数据源导入:password 键脱敏;数值/布尔/数组保留 JSON 类型语义;子节点分页。",
             () => ImportSample("json", "config.json", SampleJsonText)),
         new("导入:YAML(锚点/别名)", "YAML 导入:&common 锚点被 refA/refB 引用 — 物化为同一实例,共享引用检测直接生效。",

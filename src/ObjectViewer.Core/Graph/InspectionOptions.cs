@@ -43,6 +43,9 @@ public sealed record InspectionRequest
     public IReadOnlyList<Adapters.IObjectAdapter>? CustomAdapters { get; init; }
 
     public IReadOnlyList<Formatting.IObjectValueFormatter>? CustomFormatters { get; init; }
+
+    /// <summary>Custom text→value converters for controlled editing (FR-123/131).</summary>
+    public IReadOnlyList<Editing.IEditValueConverter>? CustomEditConverters { get; init; }
 }
 
 /// <summary>Offset-based paging cursor for indexable collections.</summary>

@@ -49,6 +49,9 @@ public partial class ObjectNodeViewModel : ObservableObject
 
     public bool IsLoadMore => Node.Kind == ObjectNodeKind.LoadMore;
 
+    /// <summary>True when the member may be edited under the session edit policy (PRD FR-012/121).</summary>
+    public bool CanEdit => Node.CanEdit;
+
     public bool ShowToggle => Node.CanExpand || IsLoadMore;
 
     public string ToggleGlyph => IsExpanded ? "▾" : "▸";
@@ -105,6 +108,7 @@ public partial class ObjectNodeViewModel : ObservableObject
         OnPropertyChanged(nameof(StateGlyph));
         OnPropertyChanged(nameof(IsMasked));
         OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(CanEdit));
     }
 
     partial void OnIsExpandedChanged(bool value)

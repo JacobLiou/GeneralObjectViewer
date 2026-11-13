@@ -270,6 +270,108 @@ public sealed class ObjectGraphExplorer
         return new NodeRefreshResult(targets.Count, changed, invalidated);
     }
 
+    /// <summary>
+    /// Controlled edit of one member node (PRD FR-122/123): validate → convert →
+    /// write (isolated) → re-read → re-describe. Setter exceptions are surfaced on
+    /// the node only and never propagate (FR-124). Loaded children are invalidated
+    /// so the next expansion reloads the replaced value's members. Diagnostics
+    /// record member names, never raw values (FR-126).
+    /// </summary>
+    public async Task<NodeEditResult> WriteAsync(ObjectNode node, string? text, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(node);
+        if (_session.IsDisposed)
+            return NodeEditResult.Stale();
+
+        if (!node.CanEdit
+            || node.IsSensitive
+            || node.Kind is not (ObjectNodeKind.Property or ObjectNodeKind.Field)
+            || node.Accessor is not { CanWrite: true, Setter: { } setter }
+            || node.Owner is null)
+        {
+            return NodeEditResult.NotEditable("This node cannot be edited.");
+        }
+
+        await Task.Yield();
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!TryConvertForEdit(node, text, out var value, out var conversionError))
+        {
+            _session.Diagnostics.Record("EditRejected", $"{node.Name}: conversion failed", node.NodeId);
+            return NodeEditResult.ConversionFailed(conversionError ?? "Invalid value.");
+        }
+
+        try
+        {
+            setter(node.Owner, value);
+        }
+        catch (Exception ex)
+        {
+            var actual = NodeError.Unwrap(ex);
+            _session.Diagnostics.Record("EditSetterFailed", $"{node.Name}: {actual.GetType().Name}", node.NodeId);
+            // Re-read so the display reflects the object's real state: the setter
+            // may have partially applied before throwing (FR-125). The error is
+            // attached after the re-read so a read failure cannot clear it.
+            ReReadAfterWrite(node);
+            node.Error = NodeError.FromException(actual, "EditFailed");
+            return NodeEditResult.SetterFailed(actual.Message);
+        }
+
+        node.Error = null;
+        node.HasChanged = true;
+        node.Version++;
+        _session.Diagnostics.Record("EditApplied", node.Name, node.NodeId);
+        ReReadAfterWrite(node);
+
+        // Children were projected from the previous value; a replaced value
+        // invalidates them so the next expansion reloads (mirrors refresh).
+        if (node.Children.Count > 0)
+            InvalidateChildren(node);
+
+        return NodeEditResult.Applied();
+    }
+
+    /// <summary>Custom session converters first, then the built-in parser (FR-123/131).</summary>
+    private bool TryConvertForEdit(ObjectNode node, string? text, out object? value, out string? error)
+    {
+        var targetType = node.Accessor!.ValueType;
+        var culture = _session.Options.Culture;
+
+        foreach (var converter in _session.EditConverters)
+        {
+            try
+            {
+                if (converter.TryConvert(text ?? string.Empty, targetType, culture, out value, out error))
+                    return true;
+            }
+            catch
+            {
+                // A failing custom converter must never break the edit pipeline.
+            }
+        }
+
+        return Editing.EditValueParser.TryParse(targetType, text, culture, out value, out error);
+    }
+
+    /// <summary>Re-reads the member and re-describes the node; getter failures become the node error.</summary>
+    private void ReReadAfterWrite(ObjectNode node)
+    {
+        var (value, error) = MemberReader.Read(node.Accessor!, node.Owner!, _session, node.NodeId);
+        if (error is not null)
+        {
+            node.Error = NodeError.FromException(error);
+            node.Display = new ValueDisplay(
+                TruncateText($"{node.Error.ExceptionType}: {node.Error.Message}"),
+                TypeNames.Get(node.DeclaredType),
+                ToolTip: node.Error.Message);
+            return;
+        }
+
+        node.Error = null;
+        node.RawValue = value;
+        ApplyDescription(node);
+    }
+
     private enum RefreshOutcome
     {
         Unchanged,
@@ -425,6 +527,15 @@ public sealed class ObjectGraphExplorer
             Accessor = descriptor.Accessor,
             Owner = descriptor.Owner,
         };
+
+        // Defense in depth: the adapter's CanEdit claim is only honored when the
+        // node really carries everything a write needs (FR-121).
+        child.CanEdit = descriptor.CanEdit
+            && descriptor.Kind is ObjectNodeKind.Property or ObjectNodeKind.Field
+            && descriptor.Accessor is { CanWrite: true }
+            && descriptor.Owner is not null
+            && !descriptor.IsSensitive
+            && descriptor.ReadError is null;
 
         ApplyValueSemantics(child, parent.Ancestors, descriptor.IsSensitive, descriptor.ReadError, isRoot: false);
 

@@ -79,6 +79,9 @@
                       MouseDoubleClick="OnGridMouseDoubleClick">
                 <DataGrid.ContextMenu>
                     <ContextMenu DataContext="{Binding PlacementTarget.DataContext, RelativeSource={RelativeSource Self}}">
+                        <MenuItem Header="Edit Value" Command="{Binding BeginEditCommand}" CommandParameter="{Binding SelectedRow}"
+                                  IsEnabled="{Binding SelectedRow.Node.CanEdit, FallbackValue=False, TargetNullValue=False}"/>
+                        <Separator/>
                         <MenuItem Header="Copy Value" Command="{Binding CopyValueCommand}" CommandParameter="{Binding SelectedRow}"/>
                         <MenuItem Header="Copy Display Path" Command="{Binding CopyDisplayPathCommand}" CommandParameter="{Binding SelectedRow}"/>
                         <MenuItem Header="Copy Stable Path" Command="{Binding CopyStablePathCommand}" CommandParameter="{Binding SelectedRow}"/>
@@ -131,6 +134,7 @@
                     <DataGridTemplateColumn Header="Value" Width="3*">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate DataType="{x:Type local:VisibleObjectNode}">
+                                <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="{Binding Node.ValueText}"
                                            ToolTip="{Binding Node.ToolTip}">
                                     <TextBlock.Style>
@@ -148,6 +152,11 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                                <!-- Editable affordance: double-click / F2 opens the inline editor (FR-122) -->
+                                <TextBlock Text="✎" FontSize="10" Foreground="#FF0066CC" Margin="5,0,0,0"
+                                           VerticalAlignment="Center" ToolTip="可编辑 (F2 / 双击)"
+                                           Visibility="{Binding Node.CanEdit, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                                </StackPanel>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -223,6 +232,40 @@
                     </ListBox>
                 </TabItem>
             </TabControl>
+
+            <!-- Inline value editor (方案A: popup, FR-122/124). IsEditing drives IsOpen;
+                 clicking outside acts as cancel; failures keep the editor open with a red hint. -->
+            <Popup x:Name="EditPopup"
+                   AllowsTransparency="True"
+                   StaysOpen="False"
+                   Placement="RelativePoint"
+                   PlacementTarget="{Binding ElementName=PartGrid}"
+                   IsOpen="{Binding IsEditing, Mode=TwoWay}"
+                   Opened="OnEditPopupOpened">
+                <Border Background="#FFFBFBFB" BorderBrush="#FF8A8A8A" BorderThickness="1"
+                        CornerRadius="4" Padding="12" Width="380" Margin="12">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="10" ShadowDepth="2" Opacity="0.28"/>
+                    </Border.Effect>
+                    <StackPanel>
+                        <TextBlock Text="{Binding EditTitle}" FontWeight="Bold" Margin="0,0,0,2"/>
+                        <TextBlock Text="{Binding EditTypeHint}" FontSize="11" Foreground="#FF707070"
+                                   Margin="0,0,0,8" TextWrapping="Wrap"/>
+                        <TextBox x:Name="EditTextBox"
+                                 Text="{Binding EditText, UpdateSourceTrigger=PropertyChanged}"
+                                 Padding="4,3" AutomationProperties.Name="Edit Value"/>
+                        <TextBlock Text="{Binding EditError}" FontSize="11" TextWrapping="Wrap"
+                                   Foreground="#FFC42B1C" Margin="0,5,0,0"
+                                   Visibility="{Binding HasEditError, Converter={StaticResource BooleanToVisibilityConverter}}"/>
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                            <Button Content="确定" Command="{Binding ConfirmEditCommand}" IsDefault="True"
+                                    MinWidth="68" Margin="0,0,8,0" Padding="10,3"/>
+                            <Button Content="取消" Command="{Binding CancelEditCommand}" IsCancel="True"
+                                    MinWidth="68" Padding="10,3"/>
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Popup>
         </Grid>
     </DockPanel>
 </UserControl>

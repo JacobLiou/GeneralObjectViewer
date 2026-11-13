@@ -1,7 +1,9 @@
 using System.Collections.ObjectModel;
+using System.Globalization;
 using System.Windows;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using ObjectViewer.Core.Editing;
 using ObjectViewer.Core.Graph;
 using ObjectViewer.Core.Paths;
 using ObjectViewer.Core.Search;
@@ -53,6 +55,30 @@ public partial class ObjectViewerViewModel : ObservableObject
     [ObservableProperty]
     private SnapshotRecord? selectedSnapshot;
 
+    // ---------- Edit (PRD FR-120~126, controlled editing) ----------
+
+    private ObjectNodeViewModel? _editingNodeVm;
+
+    [ObservableProperty]
+    private bool isEditing;
+
+    [ObservableProperty]
+    private string editTitle = string.Empty;
+
+    [ObservableProperty]
+    private string editTypeHint = string.Empty;
+
+    [ObservableProperty]
+    private string editText = string.Empty;
+
+    [ObservableProperty]
+    private string? editError;
+
+    public bool HasEditError => !string.IsNullOrEmpty(EditError);
+
+    partial void OnEditErrorChanged(string? value)
+        => OnPropertyChanged(nameof(HasEditError));
+
     public VisibleNodeCollection VisibleNodes { get; } = [];
 
     public ObservableCollection<SearchResultItem> SearchResults { get; } = [];
@@ -77,6 +103,9 @@ public partial class ObjectViewerViewModel : ObservableObject
         DiffResults.Clear();
         Snapshots.Clear();
         SelectedSnapshot = null;
+        _editingNodeVm = null;
+        EditError = null;
+        IsEditing = false;
         UpdateBottomState();
         VisibleNodes.Clear();
         if (oldSession is not null)
@@ -284,6 +313,9 @@ public partial class ObjectViewerViewModel : ObservableObject
 
     internal Action<int>? RequestScrollIntoView { get; set; }
 
+    /// <summary>Control hook: focus and select the edit box (on open and after a failed confirm).</summary>
+    internal Action? RequestEditFocus { get; set; }
+
     // ---------- Refresh (PRD FR-100~105) ----------
 
     [RelayCommand]
@@ -353,6 +385,109 @@ public partial class ObjectViewerViewModel : ObservableObject
 
         foreach (var child in vm.ChildVms.ToList())
             await ApplyRefreshAsync(child);
+    }
+
+    // ---------- Edit (PRD FR-122: input → convert → write → re-read → feedback) ----------
+
+    /// <summary>Opens the inline editor for an editable row (F2 / double-click / context menu).</summary>
+    [RelayCommand]
+    private void BeginEdit(VisibleObjectNode? row)
+    {
+        var session = _session;
+        if (row?.Node.CanEdit != true || session is null || session.IsDisposed)
+            return;
+
+        var node = row.Node.Node;
+        _editingNodeVm = row.Node;
+        EditTitle = $"编辑 {row.Node.Name}";
+        EditTypeHint = BuildEditHint(node.DeclaredType);
+        EditText = EditValueParser.ToEditString(node.RawValue, session.Options.Culture);
+        EditError = null;
+        IsEditing = true;
+        RequestEditFocus?.Invoke();
+    }
+
+    [RelayCommand]
+    private async Task ConfirmEditAsync()
+    {
+        var vm = _editingNodeVm;
+        var session = _session;
+        if (vm is null || session is null || session.IsDisposed)
+        {
+            IsEditing = false;
+            return;
+        }
+
+        var text = EditText;
+        try
+        {
+            var result = await Task.Run(() => session.Explorer.WriteAsync(vm.Node, text, session.SessionToken));
+            if (!ReferenceEquals(_session, session))
+                return; // root switched mid-edit; the editor state is reset by SetRootAsync
+
+            if (result.Success)
+            {
+                IsEditing = false;
+                await SyncAfterEditAsync(vm);
+                StatusText = $"已写入 {vm.Node.Name}";
+            }
+            else
+            {
+                // Keep the editor open so the user can fix the input (FR-122).
+                EditError = DescribeEditFailure(result);
+                RequestEditFocus?.Invoke();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            IsEditing = false;
+        }
+    }
+
+    [RelayCommand]
+    private void CancelEdit()
+    {
+        _editingNodeVm = null;
+        EditError = null;
+        IsEditing = false;
+    }
+
+    private static string DescribeEditFailure(NodeEditResult result)
+        => result.Outcome switch
+        {
+            NodeEditOutcome.ConversionFailed => $"输入无效: {result.Error}",
+            NodeEditOutcome.SetterFailed => $"写入失败: {result.Error}",
+            NodeEditOutcome.NotEditable => "该节点不可编辑。",
+            NodeEditOutcome.Stale => "会话已切换,编辑已取消。",
+            _ => result.Error ?? "写入失败。",
+        };
+
+    private static string BuildEditHint(Type? declaredType)
+    {
+        var typeName = Core.Metadata.TypeNames.Get(declaredType);
+        var acceptsNull = declaredType is null
+            || !declaredType.IsValueType
+            || Nullable.GetUnderlyingType(declaredType) is not null;
+        return acceptsNull
+            ? $"{typeName} · 输入 null 置空 · Enter 确认 · Esc 取消"
+            : $"{typeName} · Enter 确认 · Esc 取消";
+    }
+
+    /// <summary>Syncs the edited row after a successful write; reloads the subtree when the value was replaced.</summary>
+    private async Task SyncAfterEditAsync(ObjectNodeViewModel vm)
+    {
+        vm.RaiseDataChanged();
+
+        // The core write invalidated children of a replaced value: reload if expanded.
+        if (vm.Node.Children.Count == 0
+            && vm.Node.LoadState == NodeLoadState.NotLoaded
+            && vm.Node.Kind != ObjectNodeKind.Root
+            && vm.IsExpanded)
+        {
+            vm.IsExpanded = false;
+            VisibleNodes.Collapse(vm);
+            await ToggleAsync(vm);
+        }
     }
 
     // ---------- Snapshots & Diff (PRD FR-110~115) ----------

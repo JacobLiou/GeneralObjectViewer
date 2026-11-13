@@ -25,7 +25,8 @@ public sealed class InspectionSession : IAsyncDisposable
     public InspectionSession(
         InspectionOptions options,
         IReadOnlyList<IObjectAdapter>? customAdapters = null,
-        IReadOnlyList<IObjectValueFormatter>? customFormatters = null)
+        IReadOnlyList<IObjectValueFormatter>? customFormatters = null,
+        IReadOnlyList<Editing.IEditValueConverter>? customEditConverters = null)
     {
         Options = options;
         IdentityMap = new ObjectIdentityMap(options.ReferenceMode);
@@ -34,6 +35,10 @@ public sealed class InspectionSession : IAsyncDisposable
             ObjectViewerDefaults.CreateDefaultAdapters().Concat(customAdapters ?? []));
         Formatters = new FormatterRegistry(
             ObjectViewerDefaults.CreateDefaultFormatters().Concat(customFormatters ?? []));
+        EditConverters = (customEditConverters ?? [])
+            .OrderByDescending(c => c.Priority)
+            .ThenBy(c => c.Name, StringComparer.Ordinal)
+            .ToArray();
         SensitivePolicy = new DefaultSensitiveDataPolicy();
         MemberPolicy = new DefaultMemberPolicy(SensitivePolicy);
         Explorer = new ObjectGraphExplorer(this);
@@ -51,6 +56,9 @@ public sealed class InspectionSession : IAsyncDisposable
     public ObjectAdapterRegistry Adapters { get; }
 
     public FormatterRegistry Formatters { get; }
+
+    /// <summary>Priority-ordered custom text→value converters consulted before the built-in parser (FR-123).</summary>
+    public IReadOnlyList<Editing.IEditValueConverter> EditConverters { get; }
 
     public ISensitiveDataPolicy SensitivePolicy { get; }
 
@@ -144,7 +152,8 @@ public static class InspectionSessionFactory
     public static InspectionSession Start(InspectionRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
-        var session = new InspectionSession(request.Options, request.CustomAdapters, request.CustomFormatters);
+        var session = new InspectionSession(
+            request.Options, request.CustomAdapters, request.CustomFormatters, request.CustomEditConverters);
         _ = session.Explorer.CreateRoot(request);
         return session;
     }

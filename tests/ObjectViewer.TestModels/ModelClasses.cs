@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using ObjectViewer.Core.Members;
 
 namespace ObjectViewer.TestModels;
@@ -158,4 +159,80 @@ public sealed class MetadataDemo
 
 public sealed class EmptyObject
 {
+}
+
+/// <summary>Edit matrix model: one member per convertible kind plus policy edge cases (PRD §10.13).</summary>
+public sealed class EditableMachine
+{
+    public int Speed { get; set; } = 1200;
+
+    public double Temperature { get; set; } = 36.5;
+
+    public decimal Price { get; set; } = 99.95m;
+
+    public bool Enabled { get; set; } = true;
+
+    public char Grade { get; set; } = 'A';
+
+    public string Label { get; set; } = "machine-01";
+
+    public BarkVolume Volume { get; set; } = BarkVolume.Quiet;
+
+    public int? Timeout { get; set; } = 30;
+
+    public DateTime StartedAt { get; set; } = new(2026, 11, 12, 10, 30, 0);
+
+    public Guid BatchId { get; set; } = Guid.Parse("0f8fad5b-d9cb-469f-a165-70867728950e");
+
+    public MachinePoint Home { get; set; } = new(10, 20);
+
+    public string ReadOnlyLabel => Label;
+
+    public string ArchiveTag { get; private set; } = "archived";
+
+    public string ApiKey { get; set; } = "sk-12345";
+
+    [ObjectViewerEditable]
+    public int Whitelisted { get; set; } = 7;
+
+    public string ThrowingSetter
+    {
+        get => "x";
+        set => throw new InvalidOperationException("Setter rejected: machine locked");
+    }
+
+    private int _counter = 5;
+
+    public int ExposedCounter => _counter;
+}
+
+/// <summary>Custom struct with a string TypeConverter (FR-123 TypeConverter path).</summary>
+[TypeConverter(typeof(MachinePointConverter))]
+public struct MachinePoint(int x, int y)
+{
+    public int X { get; set; } = x;
+
+    public int Y { get; set; } = y;
+
+    public override string ToString() => $"{X}, {Y}";
+}
+
+public sealed class MachinePointConverter : TypeConverter
+{
+    public override bool CanConvertFrom(ITypeDescriptorContext? context, Type sourceType)
+        => sourceType == typeof(string) || base.CanConvertFrom(context, sourceType);
+
+    public override object ConvertFrom(ITypeDescriptorContext? context, CultureInfo? culture, object value)
+    {
+        if (value is string text)
+        {
+            var parts = text.Split(',');
+            if (parts.Length == 2
+                && int.TryParse(parts[0].Trim(), out var x)
+                && int.TryParse(parts[1].Trim(), out var y))
+                return new MachinePoint(x, y);
+            throw new FormatException($"\"{text}\" is not a valid MachinePoint (expected \"X, Y\").");
+        }
+        return base.ConvertFrom(context, culture, value)!;
+    }
 }

@@ -1,5 +1,7 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using ObjectViewer.Core.Graph;
 using ObjectViewer.Wpf.ViewModels;
@@ -12,11 +14,15 @@ namespace ObjectViewer.Wpf.Controls;
 /// </summary>
 public partial class ObjectViewerControl : UserControl
 {
+    private const double EditPopupWidth = 380;
+
     public ObjectViewerControl()
     {
         InitializeComponent();
         ViewModel = new ObjectViewerViewModel();
         ViewModel.RequestScrollIntoView = index => PartGrid.ScrollIntoView(VisibleNodes[index]);
+        ViewModel.PropertyChanged += OnViewModelPropertyChanged;
+        ViewModel.RequestEditFocus = () => Dispatcher.BeginInvoke(() => FocusEditBox());
         DataContext = ViewModel;
     }
 
@@ -47,6 +53,12 @@ public partial class ObjectViewerControl : UserControl
             _ = ViewModel.ToggleAsync(row);
             e.Handled = true;
         }
+        else if (e.Key == Key.F2)
+        {
+            // Controlled editing: no-op unless the row is editable (PRD FR-250).
+            ViewModel.BeginEditCommand.Execute(row);
+            e.Handled = true;
+        }
         else if (e.Key == Key.C && Keyboard.Modifiers == ModifierKeys.Control)
         {
             Clipboard.SetText(string.IsNullOrEmpty(row.Node.ValueText) ? string.Empty : row.Node.ValueText);
@@ -58,7 +70,52 @@ public partial class ObjectViewerControl : UserControl
     {
         if (ViewModel.SelectedRow is not { } row)
             return;
-        _ = ViewModel.ToggleAsync(row);
+
+        if (row.Node.CanEdit)
+            ViewModel.BeginEditCommand.Execute(row); // editable row: open the inline editor
+        else
+            _ = ViewModel.ToggleAsync(row);           // otherwise keep expand/collapse
         e.Handled = true;
+    }
+
+    // ---------- Inline edit popup (方案A) ----------
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        // Position the popup before the IsEditing binding opens it.
+        if (e.PropertyName == nameof(ObjectViewerViewModel.IsEditing) && ViewModel.IsEditing)
+            PositionEditPopup();
+    }
+
+    /// <summary>Anchors the editor under the edited row (grid center as a virtualization fallback).</summary>
+    private void PositionEditPopup()
+    {
+        EditPopup.Placement = PlacementMode.RelativePoint;
+        EditPopup.PlacementTarget = PartGrid;
+
+        var row = ViewModel.SelectedRow;
+        if (row is not null
+            && PartGrid.ItemContainerGenerator.ContainerFromItem(row) is DataGridRow container)
+        {
+            var origin = container.TranslatePoint(new Point(0, 0), PartGrid);
+            EditPopup.HorizontalOffset = Math.Clamp(origin.X, 0, Math.Max(0, PartGrid.ActualWidth - EditPopupWidth));
+            EditPopup.VerticalOffset = Math.Clamp(
+                origin.Y + container.ActualHeight + 2, 0, Math.Max(0, PartGrid.ActualHeight - 150));
+            return;
+        }
+
+        EditPopup.HorizontalOffset = Math.Max(0, (PartGrid.ActualWidth - EditPopupWidth) / 2);
+        EditPopup.VerticalOffset = 48;
+    }
+
+    private void OnEditPopupOpened(object sender, EventArgs e)
+        => FocusEditBox();
+
+    private void FocusEditBox()
+    {
+        if (!EditPopup.IsOpen)
+            return;
+        EditTextBox.Focus();
+        EditTextBox.SelectAll();
     }
 }

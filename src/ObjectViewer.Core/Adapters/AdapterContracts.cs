@@ -21,6 +21,8 @@ public sealed record ObjectNodeDescriptor(
 /// A child candidate produced by an adapter. ReadError carries an isolated getter
 /// failure (PRD FR-030/033); IsSensitive marks values that must be masked before
 /// display (NFR-023). PresetDisplay lets adapters pre-format synthetic items.
+/// CanEdit is the policy-effective editability (FR-121); the explorer re-checks
+/// it before creating the node and again before every write.
 /// </summary>
 public sealed record ObjectMemberDescriptor(
     string Name,
@@ -32,7 +34,8 @@ public sealed record ObjectMemberDescriptor(
     object? Owner = null,
     Exception? ReadError = null,
     bool IsSensitive = false,
-    ValueDisplay? PresetDisplay = null);
+    ValueDisplay? PresetDisplay = null,
+    bool CanEdit = false);
 
 /// <summary>
 /// One page of children. NextCursor non-null means a LoadMore node must be appended;

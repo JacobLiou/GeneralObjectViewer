@@ -3,7 +3,11 @@ using ObjectViewer.Core.Metadata;
 
 namespace ObjectViewer.Core.Members;
 
-/// <summary>Per-member inclusion/behavior decision (PRD FR-025).</summary>
+/// <summary>
+/// Per-member inclusion/behavior decision (PRD FR-025). CanWrite is the
+/// policy-effective editability: the member must have a setter AND pass the
+/// session edit policy (FR-121); sensitive members are never writable.
+/// </summary>
 public sealed record MemberDecision(
     bool Include,
     bool CanRead,
@@ -48,9 +52,35 @@ public sealed class DefaultMemberPolicy(ISensitiveDataPolicy sensitivePolicy) : 
         return new MemberDecision(
             Include: true,
             CanRead: true,
-            CanWrite: member.CanWrite,
+            CanWrite: member.CanWrite && !isSensitive && IsEditAllowed(member, options),
             IsSensitive: isSensitive,
             DisplayName: member.DisplayName,
             Order: member.Order);
     }
+
+    /// <summary>
+    /// Edit policy gate (PRD FR-120/121): ReadOnly blocks everything; PublicSetters
+    /// requires a public setter (the compiled setter can invoke private setters,
+    /// so the setter's own accessibility must be checked, not the member's);
+    /// ExplicitlyAllowedMembers requires [ObjectViewerEditable]; FullTrust only
+    /// requires that a setter exists.
+    /// </summary>
+    private static bool IsEditAllowed(MemberAccessor member, InspectionOptions options)
+        => options.EditPolicy switch
+        {
+            EditPolicyMode.ReadOnly => false,
+            EditPolicyMode.PublicSetters => HasPublicSetter(member),
+            EditPolicyMode.ExplicitlyAllowedMembers
+                => member.MemberInfo.IsDefined(typeof(ObjectViewerEditableAttribute), inherit: true),
+            EditPolicyMode.FullTrust => true,
+            _ => false,
+        };
+
+    private static bool HasPublicSetter(MemberAccessor member)
+        => member.MemberInfo switch
+        {
+            System.Reflection.PropertyInfo property => property.GetSetMethod() is not null,
+            System.Reflection.FieldInfo field => field.IsPublic,
+            _ => false,
+        };
 }

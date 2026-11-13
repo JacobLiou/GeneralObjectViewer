@@ -47,7 +47,8 @@ public sealed class DefaultObjectAdapter : IObjectAdapter
                 Accessor: member,
                 Owner: owner,
                 ReadError: error,
-                IsSensitive: decision.IsSensitive));
+                IsSensitive: decision.IsSensitive,
+                CanEdit: decision.CanWrite && decision.CanRead));
         }
 
         return Task.FromResult(new ChildPageResult(children));
