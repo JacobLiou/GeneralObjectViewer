@@ -1,0 +1,24 @@
+{
+  "title": "配置字典 — 特殊字符 Key",
+  "description": "引号、空格、中文 Key 的路径转义;password 条目整体脱敏;条目值保留 JSON 类型语义(字符串 / 数值 / 布尔)。",
+  "category": "敏感数据",
+  "icon": "🗂",
+  "sort": 32,
+  "typeName": "ObjectViewer.Demo.Models.AppConfig, ObjectViewer.Demo",
+  "rootName": "config",
+  "editPolicy": "ReadOnly",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": false,
+  "data": {
+    "applicationName": "pipeline-gateway",
+    "settings": {
+      "normal": "value",
+      "with'quote": 42,
+      "with space": true,
+      "你好世界": 3.14,
+      "password": "super-secret",
+      "retries": 3,
+      "endpoint": "https://api.example.com/v1"
+    }
+  }
+}

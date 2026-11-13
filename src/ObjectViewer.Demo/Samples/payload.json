@@ -1,0 +1,13 @@
+{
+  "title": "byte[] — Hex 视图",
+  "description": "长度 + Hex 前缀摘要;显式展开按页浏览字节(0xXX 'M')。256 字节随机数据以 Base64 存储,保存时原样写回。",
+  "category": "高级特性",
+  "icon": "\uD83E\uDDEC",
+  "sort": 44,
+  "typeName": "System.Byte[], System.Private.CoreLib",
+  "rootName": "payload",
+  "editPolicy": "ReadOnly",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": false,
+  "data": "Phe6lq4EzTuZhp5W8K2/Om+3TSVVF13MbosJFFeasDbP1igLs8cH267ycNyVBQluZ2vn8Q1G2Ce67Sci+7nk/tZnhxqFs4aor3J2Y6eBN2mBmq3rs78pif0AUcaf5OD1DnEFLX7v6bPlPkKbz3WAOLW+oGAL+EoXPv0dhGLACcqRgVQ1ewrqkrH6BnR8jrmHgBgQ4ESA6hUn7u6A0mRRJTV3CU4gS72r1A2uEfLVmrBElQNJryiGEZY/DYwbacBMqOA/BYRrZzRaZQw20dgiUVQ+PDxgB3UM8fi34D0xkGpNYWgSlpQr2C3P70ocUD++Hbw33CyD66FqMhSLtIb3KA=="
+}

@@ -1,0 +1,26 @@
+{
+  "title": "Dog — 循环引用",
+  "description": "IAnimal 声明类型 + Dog 运行时类型;Dog.Owner.Pet 指回自身构成引用环,展开 Owner.Pet 时显示 ↩ reference 而非无限递归。",
+  "category": "基础演示",
+  "icon": "🐕",
+  "sort": 10,
+  "typeName": "ObjectViewer.TestModels.Dog, ObjectViewer.TestModels",
+  "declaredTypeName": "ObjectViewer.TestModels.IAnimal, ObjectViewer.TestModels",
+  "rootName": "animal",
+  "editPolicy": "ReadOnly",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": true,
+  "data": {
+    "$id": "1",
+    "name": "Lucky",
+    "age": 3,
+    "barkVolume": "Loud",
+    "owner": {
+      "$id": "2",
+      "name": "Alice",
+      "pet": {
+        "$ref": "1"
+      }
+    }
+  }
+}

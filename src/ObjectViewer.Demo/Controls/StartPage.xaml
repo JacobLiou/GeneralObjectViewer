@@ -1,0 +1,85 @@
+<UserControl x:Class="ObjectViewer.Demo.Controls.StartPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <DataTemplate x:Key="SampleCardTemplate">
+            <Button Style="{StaticResource SampleCard}" Click="OnSampleCardClick" Margin="0,0,12,12"
+                    MinWidth="230" MaxWidth="260" HorizontalAlignment="Stretch">
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
+                        <TextBlock Text="{Binding Manifest.Icon}" FontSize="17" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Manifest.Title}" FontSize="12.5" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"
+                                   Margin="8,0,0,0" TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Manifest.Description}" FontSize="11" TextWrapping="Wrap"
+                               Foreground="{StaticResource TextDimBrush}" MaxHeight="42" TextTrimming="CharacterEllipsis"/>
+                    <Border Style="{StaticResource BadgeBase}" Background="{StaticResource BadgeBlueBackground}"
+                            HorizontalAlignment="Left" Margin="0,8,0,0" Padding="6,2">
+                        <TextBlock Style="{StaticResource BadgeText}" Foreground="{StaticResource BadgeBlueForeground}"
+                                   Text="{Binding Manifest.Category}"/>
+                    </Border>
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+    </UserControl.Resources>
+
+    <ScrollViewer Background="{StaticResource StartPageBrush}" VerticalScrollBarVisibility="Auto">
+        <StackPanel MaxWidth="860" Margin="40,48,40,32" HorizontalAlignment="Center">
+
+            <!-- Hero -->
+            <StackPanel HorizontalAlignment="Center">
+                <Border Width="72" Height="72" CornerRadius="18" Background="{StaticResource LogoBrush}"
+                        HorizontalAlignment="Center">
+                    <Border.Effect>
+                        <DropShadowEffect BlurRadius="18" ShadowDepth="4" Opacity="0.30" Color="#3A6ED0"/>
+                    </Border.Effect>
+                    <TextBlock Text="◈" FontSize="32" Foreground="White" FontFamily="Segoe UI Symbol"
+                               HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                </Border>
+                <TextBlock Text="Object Viewer Studio" FontSize="27" FontWeight="SemiBold"
+                           Foreground="{StaticResource TextPrimaryBrush}" HorizontalAlignment="Center"
+                           Margin="0,18,0,0"/>
+                <TextBlock Text="通用对象浏览器 — 从 JSON 示例加载,查看、编辑并保存任意对象图"
+                           FontSize="13" Foreground="{StaticResource TextSecondaryBrush}"
+                           HorizontalAlignment="Center" Margin="0,6,0,0"/>
+            </StackPanel>
+
+            <!-- Quick start -->
+            <TextBlock Text="快速开始" FontSize="13" FontWeight="SemiBold"
+                       Foreground="{StaticResource TextSecondaryBrush}" Margin="2,36,0,10"/>
+            <ItemsControl x:Name="SampleCards" ItemTemplate="{StaticResource SampleCardTemplate}">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <WrapPanel/>
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+            </ItemsControl>
+
+            <Button Style="{StaticResource SecondaryButton}" Click="OnOpenFileClick" HorizontalAlignment="Left"
+                    Margin="2,4,0,0">
+                <StackPanel Orientation="Horizontal">
+                    <TextBlock Text="&#xE8E5;" FontFamily="Segoe MDL2 Assets" FontSize="12" VerticalAlignment="Center"/>
+                    <TextBlock Text="打开数据源文件…(JSON / YAML / XML / CSV)" Margin="7,0,0,0"/>
+                </StackPanel>
+            </Button>
+
+            <!-- Hints -->
+            <Border Background="#F2F6FF" BorderBrush="#DBE6FB" BorderThickness="1" CornerRadius="8"
+                    Padding="16,12" Margin="2,28,2,0">
+                <StackPanel>
+                    <TextBlock Text="快捷键与提示" FontSize="12" FontWeight="SemiBold"
+                               Foreground="{StaticResource TextSecondaryBrush}" Margin="0,0,0,6"/>
+                    <TextBlock FontSize="11.5" Foreground="{StaticResource TextSecondaryBrush}" LineHeight="21">
+                        <Run Text="· 双击 / F2 编辑带 ✎ 标记的成员,Enter 确认,Esc 取消"/>
+                        <LineBreak/>
+                        <Run Text="· Ctrl+S 保存当前文档 · Ctrl+W 关闭标签 · Ctrl+O 打开文件"/>
+                        <LineBreak/>
+                        <Run Text="· 搜索支持已加载范围与深度搜索;📸 快照可对比编辑前后的差异"/>
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

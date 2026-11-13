@@ -1,0 +1,83 @@
+{
+  "title": "机器人工作站 (综合示例)",
+  "description": "真实工业场景配置:轴限位、网络、安全、维护日志。全部公有 setter 可编辑,任意字段修改后可保存回 JSON 文件。",
+  "category": "编辑能力",
+  "icon": "🤖",
+  "sort": 24,
+  "typeName": "ObjectViewer.Demo.Models.RobotStation, ObjectViewer.Demo",
+  "rootName": "station",
+  "editPolicy": "PublicSetters",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": false,
+  "data": {
+    "stationId": "ST-042",
+    "name": "焊装线 3 号工位",
+    "state": "Running",
+    "primaryArm": {
+      "model": "KR-210 R2700",
+      "reachMm": 2700,
+      "payloadKg": 210.0,
+      "enabled": true
+    },
+    "axes": [
+      {
+        "index": 1,
+        "name": "J1 Base",
+        "kind": "Rotary",
+        "position": 12.5,
+        "home": 0.0,
+        "lowerLimit": -185.0,
+        "upperLimit": 185.0
+      },
+      {
+        "index": 2,
+        "name": "J2 Arm",
+        "kind": "Rotary",
+        "position": -42.75,
+        "home": 45.0,
+        "lowerLimit": -140.0,
+        "upperLimit": 20.0
+      },
+      {
+        "index": 3,
+        "name": "Z Feed",
+        "kind": "Linear",
+        "position": 330.0,
+        "home": 250.0,
+        "lowerLimit": 0.0,
+        "upperLimit": 800.0
+      }
+    ],
+    "network": {
+      "host": "192.168.1.42",
+      "port": 502,
+      "protocol": "Modbus TCP",
+      "timeoutMs": 3000,
+      "tlsEnabled": false
+    },
+    "safety": {
+      "emergencyStop": false,
+      "lightCurtain": true,
+      "maxSpeedPercent": 85.0,
+      "accessLevel": "Operator"
+    },
+    "environmentTags": {
+      "line": "T3",
+      "area": "焊装车间",
+      "plc": "S7-1516F"
+    },
+    "lastServiceAt": "2026-10-28T14:00:00",
+    "maintenanceLog": [
+      {
+        "date": "2026-10-28",
+        "engineer": "王工",
+        "summary": "更换 J2 减速器润滑脂,校准零点"
+      },
+      {
+        "date": "2026-09-15",
+        "engineer": "李工",
+        "summary": "例行巡检:紧固线缆,清洁光栅"
+      }
+    ]
+  }
+}

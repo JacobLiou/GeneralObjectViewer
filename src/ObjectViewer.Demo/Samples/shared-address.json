@@ -1,0 +1,33 @@
+{
+  "title": "共享引用 (ShowSharedReferences)",
+  "description": "两个 Customer 共享同一 Address 实例($ref 保持引用同一性);第二次出现显示为 reference 节点而不是重复子树。",
+  "category": "高级特性",
+  "icon": "🔗",
+  "sort": 42,
+  "typeName": "ObjectViewer.Demo.Models.CustomerRegistry, ObjectViewer.Demo",
+  "rootName": "customers",
+  "editPolicy": "ReadOnly",
+  "referenceMode": "ShowSharedReferences",
+  "preserveReferences": true,
+  "data": {
+    "region": "华东",
+    "customers": [
+      {
+        "$id": "c1",
+        "name": "A",
+        "address": {
+          "$id": "addr",
+          "street": "Shared Street",
+          "city": "Shanghai"
+        }
+      },
+      {
+        "$id": "c2",
+        "name": "B",
+        "address": {
+          "$ref": "addr"
+        }
+      }
+    ]
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "title": "可编辑机器 (PublicSetters)",
+  "description": "双击或 F2 编辑带 ✎ 的成员:数值 / 字符串 / 枚举 / 可空 / DateTime / Guid / 自定义 TypeConverter;输入 null 置空;写错显示红字且原值不动。编辑后 Ctrl+S 保存回 JSON。",
+  "category": "编辑能力",
+  "icon": "🛠",
+  "sort": 20,
+  "typeName": "ObjectViewer.TestModels.EditableMachine, ObjectViewer.TestModels",
+  "rootName": "machine",
+  "editPolicy": "PublicSetters",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": false,
+  "data": {
+    "speed": 1200,
+    "temperature": 36.5,
+    "price": 99.95,
+    "enabled": true,
+    "grade": "A",
+    "label": "machine-01",
+    "volume": "Quiet",
+    "timeout": 30,
+    "startedAt": "2026-11-12T10:30:00",
+    "batchId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "home": {
+      "x": 10,
+      "y": 20
+    },
+    "apiKey": "sk-12345",
+    "whitelisted": 7
+  }
+}

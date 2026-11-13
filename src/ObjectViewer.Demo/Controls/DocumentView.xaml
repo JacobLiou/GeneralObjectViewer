@@ -1,0 +1,42 @@
+<UserControl x:Class="ObjectViewer.Demo.Controls.DocumentView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <DockPanel>
+        <!-- Banner -->
+        <Border DockPanel.Dock="Top" Background="White" BorderBrush="{StaticResource BorderSubtleBrush}"
+                BorderThickness="0,0,0,1" Padding="18,12,18,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                        <TextBlock Text="{Binding Sample.Manifest.Icon}" FontSize="17" VerticalAlignment="Center"/>
+                        <TextBlock Text="{Binding Sample.Manifest.Title}" FontSize="15.5" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"
+                                   Margin="9,0,0,0"/>
+                        <StackPanel x:Name="ChipPanel" Orientation="Horizontal" VerticalAlignment="Center"
+                                    Margin="12,0,0,0"/>
+                    </StackPanel>
+                    <TextBlock Text="{Binding Sample.Manifest.Description}" FontSize="11.5"
+                               Foreground="{StaticResource TextSecondaryBrush}" TextWrapping="Wrap"
+                               MaxWidth="900" HorizontalAlignment="Left"/>
+                </StackPanel>
+                <StackPanel Grid.Column="1" VerticalAlignment="Top" Margin="16,0,0,0" HorizontalAlignment="Right">
+                    <Border Style="{StaticResource BadgeBase}" Padding="7,2" ToolTip="样本类型">
+                        <TextBlock Style="{StaticResource BadgeText}" Text="{Binding DataType.Name}"/>
+                    </Border>
+                    <TextBlock x:Name="FilePathText" Style="{StaticResource HintText}" FontSize="10.5"
+                               Margin="0,6,0,0" HorizontalAlignment="Right" TextTrimming="CharacterEllipsis"
+                               MaxWidth="360" ToolTip="{Binding FilePath}"/>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Viewer -->
+        <Border Background="White">
+            <ContentControl x:Name="ViewerHost"/>
+        </Border>
+    </DockPanel>
+</UserControl>

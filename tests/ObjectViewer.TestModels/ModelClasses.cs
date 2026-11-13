@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
+using System.Text.Json.Serialization;
 using ObjectViewer.Core.Members;
 
 namespace ObjectViewer.TestModels;
@@ -195,6 +196,8 @@ public sealed class EditableMachine
     [ObjectViewerEditable]
     public int Whitelisted { get; set; } = 7;
 
+    /// <summary>Setters that throw must stay inspectable (FR-124 demo) but can never round-trip JSON.</summary>
+    [JsonIgnore]
     public string ThrowingSetter
     {
         get => "x";

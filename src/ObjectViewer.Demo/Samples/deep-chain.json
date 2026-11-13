@@ -1,0 +1,173 @@
+{
+  "title": "Deep chain — 40 层深度链",
+  "description": "默认最大深度 32:继续展开显示 limit reached 而非静默停止。",
+  "category": "高级特性",
+  "icon": "⛓",
+  "sort": 40,
+  "typeName": "ObjectViewer.TestModels.LinkedNode, ObjectViewer.TestModels",
+  "rootName": "chain",
+  "editPolicy": "ReadOnly",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": true,
+  "data": {
+    "$id": "1",
+    "value": 0,
+    "next": {
+      "$id": "2",
+      "value": 1,
+      "next": {
+        "$id": "3",
+        "value": 2,
+        "next": {
+          "$id": "4",
+          "value": 3,
+          "next": {
+            "$id": "5",
+            "value": 4,
+            "next": {
+              "$id": "6",
+              "value": 5,
+              "next": {
+                "$id": "7",
+                "value": 6,
+                "next": {
+                  "$id": "8",
+                  "value": 7,
+                  "next": {
+                    "$id": "9",
+                    "value": 8,
+                    "next": {
+                      "$id": "10",
+                      "value": 9,
+                      "next": {
+                        "$id": "11",
+                        "value": 10,
+                        "next": {
+                          "$id": "12",
+                          "value": 11,
+                          "next": {
+                            "$id": "13",
+                            "value": 12,
+                            "next": {
+                              "$id": "14",
+                              "value": 13,
+                              "next": {
+                                "$id": "15",
+                                "value": 14,
+                                "next": {
+                                  "$id": "16",
+                                  "value": 15,
+                                  "next": {
+                                    "$id": "17",
+                                    "value": 16,
+                                    "next": {
+                                      "$id": "18",
+                                      "value": 17,
+                                      "next": {
+                                        "$id": "19",
+                                        "value": 18,
+                                        "next": {
+                                          "$id": "20",
+                                          "value": 19,
+                                          "next": {
+                                            "$id": "21",
+                                            "value": 20,
+                                            "next": {
+                                              "$id": "22",
+                                              "value": 21,
+                                              "next": {
+                                                "$id": "23",
+                                                "value": 22,
+                                                "next": {
+                                                  "$id": "24",
+                                                  "value": 23,
+                                                  "next": {
+                                                    "$id": "25",
+                                                    "value": 24,
+                                                    "next": {
+                                                      "$id": "26",
+                                                      "value": 25,
+                                                      "next": {
+                                                        "$id": "27",
+                                                        "value": 26,
+                                                        "next": {
+                                                          "$id": "28",
+                                                          "value": 27,
+                                                          "next": {
+                                                            "$id": "29",
+                                                            "value": 28,
+                                                            "next": {
+                                                              "$id": "30",
+                                                              "value": 29,
+                                                              "next": {
+                                                                "$id": "31",
+                                                                "value": 30,
+                                                                "next": {
+                                                                  "$id": "32",
+                                                                  "value": 31,
+                                                                  "next": {
+                                                                    "$id": "33",
+                                                                    "value": 32,
+                                                                    "next": {
+                                                                      "$id": "34",
+                                                                      "value": 33,
+                                                                      "next": {
+                                                                        "$id": "35",
+                                                                        "value": 34,
+                                                                        "next": {
+                                                                          "$id": "36",
+                                                                          "value": 35,
+                                                                          "next": {
+                                                                            "$id": "37",
+                                                                            "value": 36,
+                                                                            "next": {
+                                                                              "$id": "38",
+                                                                              "value": 37,
+                                                                              "next": {
+                                                                                "$id": "39",
+                                                                                "value": 38,
+                                                                                "next": {
+                                                                                  "$id": "40",
+                                                                                  "value": 39,
+                                                                                  "next": null
+                                                                                }
+                                                                              }
+                                                                            }
+                                                                          }
+                                                                        }
+                                                                      }
+                                                                    }
+                                                                  }
+                                                                }
+                                                              }
+                                                            }
+                                                          }
+                                                        }
+                                                      }
+                                                    }
+                                                  }
+                                                }
+                                              }
+                                            }
+                                          }
+                                        }
+                                      }
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

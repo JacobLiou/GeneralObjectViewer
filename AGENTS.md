@@ -4,6 +4,15 @@
 - 全解决方案: `dotnet build ObjectViewer.sln` / `dotnet test ObjectViewer.sln`(xUnit;Core.Tests + Extensions.Tests)
 - Demo: `src/ObjectViewer.Demo`(net8.0-windows, WPF)
 
+## Demo(Studio 外壳)— 关键设计
+- 界面: 无边框窗口(WindowChrome)+ 深色标题栏/侧栏(示例库,分组+搜索)+ 工具栏 + 文档标签(RadioButton 样式,脏状态 ●)+ 状态栏;`Theme/Theme.xaml` 全部样式
+- 示例: `src/ObjectViewer.Demo/Samples/*.json`(构建复制到输出);manifest 字段: title/description/category/icon/sort/typeName/declaredTypeName/rootName/editPolicy/referenceMode/preserveReferences/collectionPageSize/data
+- 加载: `SampleLibrary.Load` → JsonNode 解析 manifest → `Type.GetType`(含 Assembly.Load 兜底)→ data 反序列化为强类型实例(枚举字符串、camelCase、preserve 时 $id/$ref)
+- 编辑: 每个文档独立 `ObjectViewerControl` 实例(标签切换保状态);脏跟踪 = 监听 ViewModel.StatusText 以"已写入"开头
+- 保存: `SampleLibrary.SaveAsync` — 保留 manifest 元数据、只替换 data 节点 + 写 updatedAt;`SaveAsAsync` 另存副本
+- 外部文件: JSON 含 manifest 字段则按示例加载,否则走 `DataSourceImportService` 只读导入(不可保存)
+- 注意: 会抛异常的 setter(如 `EditableMachine.ThrowingSetter`)必须标 `[JsonIgnore]`,否则保存→重载会失败(FR-124 演示成员不参与 JSON 往返)
+
 ## 编辑(可写)能力 — 关键链路
 - 开关: `InspectionOptions.EditPolicy`(`ReadOnly` 默认 / `PublicSetters` / `ExplicitlyAllowedMembers`([ObjectViewerEditable] 白名单) / `FullTrust`)
 - 门控: `DefaultMemberPolicy.IsEditAllowed`(敏感成员任何模式下都不可编辑;PublicSetters 校验 setter 本身可见性,表达式树 setter 可调私有 setter)

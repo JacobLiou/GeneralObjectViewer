@@ -1,0 +1,30 @@
+{
+  "title": "白名单编辑 ([Editable])",
+  "description": "ExplicitlyAllowedMembers 策略:仅标注 [ObjectViewerEditable] 的 Whitelisted 成员可编辑,其余成员(包括公有 setter)一律只读。",
+  "category": "编辑能力",
+  "icon": "🔒",
+  "sort": 22,
+  "typeName": "ObjectViewer.TestModels.EditableMachine, ObjectViewer.TestModels",
+  "rootName": "machine",
+  "editPolicy": "ExplicitlyAllowedMembers",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": false,
+  "data": {
+    "speed": 1200,
+    "temperature": 36.5,
+    "price": 99.95,
+    "enabled": true,
+    "grade": "A",
+    "label": "machine-01",
+    "volume": "Quiet",
+    "timeout": 30,
+    "startedAt": "2026-11-12T10:30:00",
+    "batchId": "0f8fad5b-d9cb-469f-a165-70867728950e",
+    "home": {
+      "x": 10,
+      "y": 20
+    },
+    "apiKey": "sk-12345",
+    "whitelisted": 7
+  }
+}

@@ -1,173 +1,522 @@
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Input;
 using Microsoft.Win32;
 using ObjectViewer.Core.DataSources;
 using ObjectViewer.Core.Graph;
+using ObjectViewer.Demo.Controls;
 using ObjectViewer.Extensions;
-using ObjectViewer.TestModels;
+using ObjectViewer.Wpf.Controls;
+using ObjectViewer.Wpf.ViewModels;
 
 namespace ObjectViewer.Demo;
 
-public sealed record Sample(string Title, string Description, Func<InspectionRequest> Factory);
-
+/// <summary>
+/// Shell window: sample library sidebar + tabbed documents (view/edit/save JSON samples)
+/// + external data-source import. Documents keep their viewer instance alive across tab
+/// switches so expansion state and sessions are preserved.
+/// </summary>
 public partial class MainWindow : Window
 {
-    private static readonly DataSourceImportService ImportService = new();
+    private readonly ObservableCollection<SampleDocument> _documents = [];
+    private readonly DataSourceImportService _importService = new();
+    private readonly StartPage _startPage = new();
 
-    private const string SampleJsonText = """
-        {
-          "station": "S01",
-          "password": "hunter2",
-          "timeoutMs": 3000,
-          "enabled": true,
-          "axes": [
-            { "index": 0, "position": 12.5 },
-            { "index": 1, "position": -3.25 }
-          ],
-          "tags": ["alpha", "beta"]
-        }
-        """;
-
-    private const string SampleYamlText = """
-        server:
-          host: 192.168.1.10
-          port: 502
-        auth:
-          password: secret-yaml
-        devices:
-          - name: gripper
-            address: 1
-          - name: scanner
-            address: 2
-        shared: &common
-          retries: 3
-          timeout: 5
-        refA: *common
-        refB: *common
-        """;
-
-    private const string SampleXmlText = """
-        <?xml version="1.0" encoding="utf-8"?>
-        <Device name="RobotArm" version="2">
-          <Axes count="3">
-            <Axis index="0">12.5</Axis>
-            <Axis index="1">-3.25</Axis>
-            <Axis index="2">0</Axis>
-          </Axes>
-          <Credentials password="p@ss" token="abc123"/>
-          <Notes>Imported from an XML file.</Notes>
-        </Device>
-        """;
-
-    private const string SampleCsvText = """
-        Name,Age,City,ApiKey
-        Alice,34,Shanghai,sk-123
-        Bob,28,Beijing,sk-456
-        Carol,41,"Suzhou, Industrial Park",sk-789
-        """;
-
-    private static readonly Sample[] Samples =
-    [
-        new("Dog (接口/循环引用)", "IAnimal 声明类型 + Dog 运行时类型;Dog.Owner.Pet 构成环,展开到 Pet 时显示 ↩ reference。",
-            () => new InspectionRequest { RootName = "animal", Value = SampleData.CreateDog(), DeclaredType = typeof(IAnimal) }),
-        new("Order (12,500 项大集合)", "大集合分页:首次只加载 100 项 + Load more;OrderId/Customer/Parent 自引用。",
-            () => new InspectionRequest { RootName = "order", Value = SampleData.CreateOrder() }),
-        new("Device (Getter 异常隔离)", "ThrowingProp 抛异常只影响该成员;LongStringProp 超长截断;其余成员正常。",
-            () => new InspectionRequest { RootName = "device", Value = SampleData.CreateFailingDevice() }),
-        new("Credentials (敏感字段脱敏)", "Password/ApiToken/ConnectionString 默认名称命中 + CustomSecret 特性标注,复制拿不到原值。",
-            () => new InspectionRequest { RootName = "credentials", Value = SampleData.CreateCredentials() }),
-        new("Dictionary (特殊字符 Key)", "引号、空格、中文 Key 的路径转义;password 条目整体脱敏;条目展开为 Key/Value。",
-            () => new InspectionRequest { RootName = "config", Value = SampleData.CreateSpecialDictionary() }),
-        new("Deep chain (40 层深度链)", "默认最大深度 32,继续展开显示 limit reached 而非静默停止。",
-            () => new InspectionRequest { RootName = "chain", Value = SampleData.CreateDeepChain(40) }),
-        new("多维数组 int[3,4]", "Rank 与各维长度摘要;多维索引 [i,j] 分页展开。",
-            () => new InspectionRequest { RootName = "matrix", Value = SampleData.CreateMultiDimensionalArray() }),
-        new("byte[4096] (Hex)", "长度 + Hex 前缀摘要;显式展开按页浏览字节(0xXX 'M')。",
-            () => new InspectionRequest { RootName = "payload", Value = SampleData.CreateBytes() }),
-        new("共享引用 (ShowSharedReferences)", "两个 Customer 共享同一 Address;第二次出现显示为引用节点。",
-            () => new InspectionRequest
-            {
-                RootName = "customers",
-                Value = SampleData.CreateSharedReferenceGraph(),
-                Options = InspectionOptions.SafeDefault with { ReferenceMode = ReferenceMode.ShowSharedReferences },
-            }),
-        new("null 根 (声明类型)", "根为 null 仍显示声明类型与 null 状态。",
-            () => new InspectionRequest { RootName = "nothing", Value = null, DeclaredType = typeof(IAnimal) }),
-        new("编辑: PublicSetters", "双击或 F2 编辑带 ✎ 的成员:数值/字符串/枚举/可空/DateTime/Guid/自定义 TypeConverter;getter-only、私有 setter、敏感成员不可编辑;输入 null 置空;写错显示红字且原值不动。",
-            () => new InspectionRequest
-            {
-                RootName = "machine",
-                Value = new EditableMachine(),
-                Options = InspectionOptions.SafeDefault with { EditPolicy = EditPolicyMode.PublicSetters },
-            }),
-        new("编辑: 白名单 [Editable]", "ExplicitlyAllowedMembers 策略:仅标注 [ObjectViewerEditable] 的 Whitelisted 可编辑,其余一律只读。",
-            () => new InspectionRequest
-            {
-                RootName = "machine",
-                Value = new EditableMachine(),
-                Options = InspectionOptions.SafeDefault with { EditPolicy = EditPolicyMode.ExplicitlyAllowedMembers },
-            }),
-        new("导入:JSON 配置", "外部数据源导入:password 键脱敏;数值/布尔/数组保留 JSON 类型语义;子节点分页。",
-            () => ImportSample("json", "config.json", SampleJsonText)),
-        new("导入:YAML(锚点/别名)", "YAML 导入:&common 锚点被 refA/refB 引用 — 物化为同一实例,共享引用检测直接生效。",
-            () => ImportSample("yaml", "devices.yaml", SampleYamlText)),
-        new("导入:XML 设备描述", "XML 导入:属性显示为 @name 成员;重复同名元素用索引路径保持稳定路径唯一;文本叶子直接显示。",
-            () => ImportSample("xml", "device.xml", SampleXmlText)),
-        new("导入:CSV 表", "CSV 导入:首行为表头,数据行物化为字典;ApiKey 列脱敏;含引号转义的单元格。",
-            () => ImportSample("csv", "people.csv", SampleCsvText)),
-    ];
+    private IReadOnlyList<SampleFile> _samples = [];
+    private ICollectionView? _sampleView;
+    private string _samplesFolder = SampleLibrary.DefaultFolder;
+    private bool _suppressSelectionSync;
 
     public MainWindow()
     {
         InitializeComponent();
-        SampleList.ItemsSource = Samples;
+        TabStrip.ItemsSource = _documents;
+        _startPage.SampleRequested += sample => _ = OpenSampleAsync(sample);
+        _startPage.OpenFileRequested += OpenExternalFile;
+        LoadLibrary();
+        ShowStartPage();
+        StatusVersionText.Text = $"Object Viewer Studio · v{typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? "1.0.0"}";
+        SetStatus("就绪 — 从左侧示例库选择一个示例开始");
     }
 
-    private static InspectionRequest ImportSample(string format, string rootName, string content)
+    // ---------- Library ----------
+
+    private void LoadLibrary()
     {
-        var result = ImportService.ImportTextAsync(format, content, rootName).GetAwaiter().GetResult();
-        return new InspectionRequest
+        _samplesFolder = SampleLibrary.DefaultFolder;
+        (_samples, var errors) = SampleLibrary.Discover(_samplesFolder);
+
+        _sampleView = CollectionViewSource.GetDefaultView(_samples);
+        _sampleView.SortDescriptions.Add(new SortDescription("Manifest.Sort", ListSortDirection.Ascending));
+        _sampleView.SortDescriptions.Add(new SortDescription("Manifest.Title", ListSortDirection.Ascending));
+        _sampleView.GroupDescriptions.Add(new PropertyGroupDescription("Manifest.Category"));
+        _sampleView.Filter = FilterSample;
+        SampleList.ItemsSource = _sampleView;
+        SampleCountText.Text = $"{_samples.Count} 个示例";
+        _startPage.ShowSamples(_sampleView.OfType<SampleFile>().ToList());
+
+        if (errors.Count > 0)
+            SetStatus($"部分示例加载失败: {string.Join("; ", errors)}");
+    }
+
+    private bool FilterSample(object item)
+    {
+        if (item is not SampleFile sample)
+            return false;
+        var query = SearchBox.Text?.Trim();
+        if (string.IsNullOrEmpty(query))
+            return true;
+        return sample.Manifest.Title.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || sample.Manifest.Description.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || sample.Manifest.Category.Contains(query, StringComparison.OrdinalIgnoreCase)
+               || sample.FileName.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private void OnSearchTextChanged(object sender, TextChangedEventArgs e)
+        => _sampleView?.Refresh();
+
+    private void OnRefreshLibraryClick(object sender, RoutedEventArgs e)
+    {
+        LoadLibrary();
+        SetStatus("示例库已重新扫描");
+    }
+
+    private void OnOpenSamplesFolderClick(object sender, RoutedEventArgs e)
+    {
+        try
         {
-            RootName = result.RootName,
-            Value = result.Value,
-            DeclaredType = result.DeclaredType,
-            CustomAdapters = ObjectViewerFormatAdapters.All,
+            Directory.CreateDirectory(_samplesFolder);
+            Process.Start(new ProcessStartInfo("explorer.exe", _samplesFolder) { UseShellExecute = true });
+        }
+        catch (Exception ex)
+        {
+            SetStatus($"无法打开文件夹: {ex.Message}");
+        }
+    }
+
+    // ---------- Document lifecycle ----------
+
+    private async Task OpenSampleAsync(SampleFile sample)
+        => await OpenSamplePathAsync(sample.FilePath);
+
+    private async Task OpenSamplePathAsync(string path)
+    {
+        var existing = _documents.FirstOrDefault(d => string.Equals(d.FilePath, path, StringComparison.OrdinalIgnoreCase));
+        if (existing is not null)
+        {
+            SetCurrent(existing);
+            return;
+        }
+
+        SampleDocument document;
+        try
+        {
+            document = SampleLibrary.Load(path);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"加载示例失败:\n{ex.Message}", "Object Viewer Studio", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        await ActivateNewDocumentAsync(document);
+        SetStatus($"已加载 {document.Title} · {document.Sample.FileSizeText}");
+    }
+
+    private async Task ActivateNewDocumentAsync(SampleDocument document)
+    {
+        var viewer = new ObjectViewerControl();
+        await viewer.SetRootAsync(SampleLibrary.BuildRequest(document));
+        HookDirtyTracking(document, viewer);
+        document.Viewer = viewer;
+
+        var view = new DocumentView();
+        view.Bind(document, viewer);
+        document.View = view;
+
+        _documents.Add(document);
+        SetCurrent(document);
+    }
+
+    private void HookDirtyTracking(SampleDocument document, ObjectViewerControl viewer)
+    {
+        // A successful inline write publishes the "已写入 <member>" status (FR-122);
+        // treat it as the document becoming dirty.
+        viewer.ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(ObjectViewerViewModel.StatusText)
+                && viewer.ViewModel.StatusText.StartsWith("已写入", StringComparison.Ordinal))
+            {
+                document.IsDirty = true;
+                if (document.IsCurrent)
+                    UpdateDocumentStatus(document);
+            }
         };
     }
 
-    private async void OnSampleSelectionChanged(object sender, SelectionChangedEventArgs e)
+    private void SetCurrent(SampleDocument? document)
     {
-        if (SampleList.SelectedItem is not Sample sample)
+        foreach (var doc in _documents)
+            doc.IsCurrent = ReferenceEquals(doc, document);
+
+        if (document is null)
+        {
+            ShowStartPage();
             return;
-        DescriptionText.Text = sample.Description;
-        await Viewer.SetRootAsync(sample.Factory());
+        }
+
+        DocumentHost.Content = document.View;
+        TitleDocumentText.Text = $"{document.Sample.Manifest.Icon}  {document.Sample.Manifest.Title}";
+        SaveButton.IsEnabled = document.CanSave;
+        SaveAsButton.IsEnabled = document.CanSave;
+        ReloadButton.IsEnabled = true;
+        UpdateDocumentStatus(document);
+        SyncSidebarSelection(document);
     }
 
-    private async void OnOpenDataSourceClick(object sender, RoutedEventArgs e)
+    private void ShowStartPage()
     {
-        var dialog = new OpenFileDialog
+        DocumentHost.Content = _startPage;
+        TitleDocumentText.Text = string.Empty;
+        StatusDocumentText.Text = string.Empty;
+        SaveButton.IsEnabled = false;
+        SaveAsButton.IsEnabled = false;
+        ReloadButton.IsEnabled = false;
+    }
+
+    private void UpdateDocumentStatus(SampleDocument document)
+        => StatusDocumentText.Text = document.IsDirty
+            ? $"{document.FilePath} · ● 未保存"
+            : document.FilePath;
+
+    private void SyncSidebarSelection(SampleDocument document)
+    {
+        var match = _samples.FirstOrDefault(s => string.Equals(s.FilePath, document.FilePath, StringComparison.OrdinalIgnoreCase));
+        if (match is null)
+            return;
+        _suppressSelectionSync = true;
+        SampleList.SelectedItem = match;
+        SampleList.ScrollIntoView(match);
+        _suppressSelectionSync = false;
+    }
+
+    private async Task CloseDocumentAsync(SampleDocument document)
+    {
+        if (document.IsDirty)
         {
-            Title = "打开数据源",
-            Filter = "数据源文件 (*.json;*.yaml;*.yml;*.xml;*.csv)|*.json;*.yaml;*.yml;*.xml;*.csv|所有文件 (*.*)|*.*",
+            var choice = MessageBox.Show(this,
+                $"是否保存对 \"{document.Title}\" 的更改?",
+                "Object Viewer Studio",
+                MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+            if (choice == MessageBoxResult.Cancel)
+                return;
+            if (choice == MessageBoxResult.Yes)
+            {
+                await SaveDocumentAsync(document);
+                if (document.IsDirty)
+                    return; // save failed; keep the document open
+            }
+        }
+
+        _documents.Remove(document);
+        if (document.Viewer?.ViewModel.Session is { } session)
+            await session.DisposeAsync();
+        SetCurrent(_documents.LastOrDefault());
+        SetStatus($"已关闭 {document.Title}");
+    }
+
+    // ---------- Save / reload ----------
+
+    private async Task SaveDocumentAsync(SampleDocument document)
+    {
+        if (!document.CanSave)
+        {
+            SetStatus("该文档为外部导入,只读浏览");
+            return;
+        }
+
+        try
+        {
+            await SampleLibrary.SaveAsync(document);
+            document.IsDirty = false;
+            if (document.IsCurrent)
+                UpdateDocumentStatus(document);
+            SetStatus($"已保存 {Path.GetFileName(document.FilePath)}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"保存失败:\n{ex.Message}", "Object Viewer Studio", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void OnSaveClick(object sender, RoutedEventArgs e)
+    {
+        if (CurrentDocument is { } document)
+            await SaveDocumentAsync(document);
+    }
+
+    private async void OnSaveAsClick(object sender, RoutedEventArgs e)
+    {
+        if (CurrentDocument is not { CanSave: true } document)
+            return;
+
+        var dialog = new SaveFileDialog
+        {
+            Title = "另存为示例",
+            Filter = "JSON 示例 (*.json)|*.json",
+            FileName = document.Title + ".json",
+            InitialDirectory = _samplesFolder,
         };
         if (dialog.ShowDialog(this) != true)
             return;
 
         try
         {
-            var result = await ImportService.ImportFileAsync(dialog.FileName);
-            await Viewer.SetRootAsync(new InspectionRequest
+            await SampleLibrary.SaveAsAsync(document, dialog.FileName);
+            document.IsDirty = false;
+            if (document.IsCurrent)
+                UpdateDocumentStatus(document);
+            SetStatus($"已保存到 {dialog.FileName}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"另存失败:\n{ex.Message}", "Object Viewer Studio", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void OnReloadClick(object sender, RoutedEventArgs e)
+    {
+        if (CurrentDocument is not { } document)
+            return;
+
+        if (document.IsDirty)
+        {
+            var choice = MessageBox.Show(this,
+                $"重新加载将丢弃对 \"{document.Title}\" 的未保存更改,继续?",
+                "Object Viewer Studio",
+                MessageBoxButton.YesNo, MessageBoxImage.Question);
+            if (choice != MessageBoxResult.Yes)
+                return;
+        }
+
+        try
+        {
+            if (document.IsImported)
+                await ImportIntoDocumentAsync(document, document.FilePath);
+            else
             {
-                RootName = result.RootName,
-                Value = result.Value,
-                DeclaredType = result.DeclaredType,
-                CustomAdapters = ObjectViewerFormatAdapters.All,
-            });
-            DescriptionText.Text = $"已导入 {result.Origin.Format}: {dialog.FileName}({result.Origin.SizeBytes:N0} 字节,一次性快照)";
+                var fresh = SampleLibrary.Load(document.FilePath);
+                document.Data = fresh.Data;
+                document.DataType = fresh.DataType;
+                await document.Viewer!.SetRootAsync(SampleLibrary.BuildRequest(document));
+            }
+            document.IsDirty = false;
+            if (document.IsCurrent)
+                UpdateDocumentStatus(document);
+            SetStatus($"已从磁盘重新加载 {document.Title}");
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, $"重新加载失败:\n{ex.Message}", "Object Viewer Studio", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    // ---------- Sidebar / tabs ----------
+
+    private void OnSampleSelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_suppressSelectionSync)
+            return;
+        if (SampleList.SelectedItem is SampleFile sample)
+            _ = OpenSampleAsync(sample);
+    }
+
+    private void OnSampleListKeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key == Key.Enter && SampleList.SelectedItem is SampleFile sample)
+        {
+            _ = OpenSampleAsync(sample);
+            e.Handled = true;
+        }
+    }
+
+    private async void OnTabCloseClick(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is SampleDocument document)
+        {
+            e.Handled = true;
+            await CloseDocumentAsync(document);
+        }
+    }
+
+    private SampleDocument? CurrentDocument
+        => _documents.FirstOrDefault(d => d.IsCurrent);
+
+    // ---------- External files ----------
+
+    private void OpenExternalFile()
+    {
+        var dialog = new OpenFileDialog
+        {
+            Title = "打开数据源或示例文件",
+            Filter = "所有支持的文件 (*.json;*.yaml;*.yml;*.xml;*.csv)|*.json;*.yaml;*.yml;*.xml;*.csv|JSON 示例 (*.json)|*.json|数据源 (*.yaml;*.yml;*.xml;*.csv)|*.yaml;*.yml;*.xml;*.csv|所有文件 (*.*)|*.*",
+        };
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        var path = dialog.FileName;
+        if (string.Equals(Path.GetExtension(path), ".json", StringComparison.OrdinalIgnoreCase)
+            && SampleLibrary.LooksLikeSample(path))
+        {
+            _ = OpenSamplePathAsync(path);
+            return;
+        }
+
+        _ = ImportExternalAsync(path);
+    }
+
+    private async Task ImportExternalAsync(string path)
+    {
+        var document = new SampleDocument
+        {
+            Sample = new SampleFile
+            {
+                FilePath = path,
+                Manifest = new SampleManifest(
+                    Title: Path.GetFileNameWithoutExtension(path),
+                    Description: "外部数据源导入(一次性快照)— 只读浏览,不可保存。",
+                    Category: "导入",
+                    Icon: "📥",
+                    Sort: 999,
+                    TypeName: string.Empty,
+                    DeclaredTypeName: null,
+                    RootName: Path.GetFileNameWithoutExtension(path),
+                    EditPolicy: EditPolicyMode.ReadOnly,
+                    ReferenceMode: ReferenceMode.DetectCyclesOnly,
+                    PreserveReferences: false,
+                    CollectionPageSize: null),
+            },
+            Data = null,
+            DataType = typeof(object),
+            FilePath = path,
+            IsImported = true,
+        };
+
+        try
+        {
+            await ImportIntoDocumentAsync(document, path);
         }
         catch (DataSourceException ex)
         {
             MessageBox.Show(this, ex.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(this, ex.Message, "导入失败", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return;
+        }
+
+        await ActivateNewDocumentAsync(document);
+    }
+
+    private async Task ImportIntoDocumentAsync(SampleDocument document, string path)
+    {
+        var result = await _importService.ImportFileAsync(path);
+        document.Data = result.Value;
+        document.DataType = typeof(object);
+        await document.Viewer!.SetRootAsync(new InspectionRequest
+        {
+            RootName = result.RootName,
+            Value = result.Value,
+            DeclaredType = result.DeclaredType,
+            CustomAdapters = ObjectViewerFormatAdapters.All,
+        });
+    }
+
+    private void OnOpenFileClick(object sender, RoutedEventArgs e)
+        => OpenExternalFile();
+
+    // ---------- Window chrome ----------
+
+    private void OnMinimizeClick(object sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void OnMaximizeClick(object sender, RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void OnCloseClick(object sender, RoutedEventArgs e)
+        => Close();
+
+    protected override void OnStateChanged(EventArgs e)
+    {
+        base.OnStateChanged(e);
+        var maximized = WindowState == WindowState.Maximized;
+        RootBorder.Padding = maximized ? new Thickness(7) : new Thickness(0);
+        MaximizeGlyph.Text = maximized ? "\uE923" : "\uE922";
+    }
+
+    // ---------- Keyboard & closing ----------
+
+    private void OnWindowPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        if (Keyboard.Modifiers != ModifierKeys.Control)
+            return;
+
+        if (e.Key == Key.S)
+        {
+            if (CurrentDocument is { } document)
+                _ = SaveDocumentAsync(document);
+            e.Handled = true;
+        }
+        else if (e.Key == Key.O)
+        {
+            OpenExternalFile();
+            e.Handled = true;
+        }
+        else if (e.Key == Key.W)
+        {
+            if (CurrentDocument is { } document)
+                _ = CloseDocumentAsync(document);
+            e.Handled = true;
         }
     }
+
+    private async void OnWindowClosing(object? sender, CancelEventArgs e)
+    {
+        var dirty = _documents.Where(d => d.IsDirty).ToList();
+        if (dirty.Count == 0)
+            return;
+
+        var choice = MessageBox.Show(this,
+            $"有 {dirty.Count} 个未保存的文档,保存后退出?",
+            "Object Viewer Studio",
+            MessageBoxButton.YesNoCancel, MessageBoxImage.Question);
+        if (choice == MessageBoxResult.Cancel)
+        {
+            e.Cancel = true;
+            return;
+        }
+
+        if (choice != MessageBoxResult.Yes)
+            return;
+
+        e.Cancel = true; // re-close after the async saves complete
+        foreach (var document in dirty)
+            await SaveDocumentAsync(document);
+
+        var stillDirty = _documents.Any(d => d.IsDirty);
+        if (stillDirty)
+            return; // a save failed; let the user decide what to do
+
+        Close();
+    }
+
+    private void SetStatus(string text)
+        => StatusText.Text = text;
 }

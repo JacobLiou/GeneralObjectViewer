@@ -1,0 +1,14 @@
+{
+  "title": "null 根 + 声明类型",
+  "description": "根对象为 null,但声明类型为 IAnimal — 根节点仍显示类型信息与 null 状态,而不是一片空白。",
+  "category": "基础演示",
+  "icon": "⚪",
+  "sort": 12,
+  "typeName": "ObjectViewer.TestModels.Dog, ObjectViewer.TestModels",
+  "declaredTypeName": "ObjectViewer.TestModels.IAnimal, ObjectViewer.TestModels",
+  "rootName": "nothing",
+  "editPolicy": "ReadOnly",
+  "referenceMode": "DetectCyclesOnly",
+  "preserveReferences": false,
+  "data": null
+}

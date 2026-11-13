@@ -13,4 +13,8 @@
     <ProjectReference Include="..\..\tests\ObjectViewer.TestModels\ObjectViewer.TestModels.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Samples\**\*.json" CopyToOutputDirectory="PreserveNewest"/>
+  </ItemGroup>
+
 </Project>
